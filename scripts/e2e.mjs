@@ -1,0 +1,166 @@
+// End-to-end проверка через HTTP: npm run build && npm start (в другом терминале), затем BASE_URL=http://localhost:3000 node scripts/e2e.mjs
+import { readFileSync } from 'node:fs';
+const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
+let cookie = '';
+let failed = 0;
+const ok = (c, m) => { console.log(`${c ? '✅' : '❌'} ${m}`); if (!c) failed++; };
+
+async function req(path, opts = {}) {
+  const res = await fetch(BASE + path, { ...opts, redirect: 'manual', headers: { ...(opts.headers ?? {}), cookie } });
+  const sc = res.headers.get('set-cookie');
+  if (sc) cookie = sc.split(';')[0];
+  return res;
+}
+const post = (p, body, method = 'POST') => req(p, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const jsonOf = (r) => r.json();
+
+const email = `e2e_${Date.now()}@example.com`;
+
+// Авторизация
+ok((await req('/dashboard')).status === 307, 'неавторизованный доступ к /dashboard → редирект на логин');
+ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: '123' })).status === 400, 'короткий пароль отклонён');
+let r = await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123' });
+ok(r.status === 200, 'регистрация');
+ok((await post('/api/auth/register', { name: 'X', email, password: 'password123' })).status === 409, 'дубликат e-mail отклонён');
+ok((await req('/onboarding')).status === 200, 'после регистрации открыт onboarding');
+ok((await req('/dashboard')).status === 307, 'без профессии dashboard → onboarding');
+
+// Профессии из БД
+const all = await jsonOf(await req('/api/professions'));
+const total = all.categories.reduce((a, c) => a + c.professions.length, 0);
+ok(total === 38 && all.categories.length === 5, `в БД 38 профессий в 5 категориях (получено ${total}/${all.categories.length})`);
+const found = await jsonOf(await req('/api/professions?q=sql'));
+ok(found.categories.flatMap((c) => c.professions).some((p) => p.id === 'data-analyst'), 'поиск по профессиям (sql → Аналитик данных)');
+ok((await post('/api/profile', { professionId: 'nope', level: 'middle' }, 'PATCH')).status === 404, 'несуществующая профессия отклонена');
+ok((await post('/api/profile', { professionId: 'product-manager', level: 'expert' }, 'PATCH')).status === 400, 'неверный уровень отклонён');
+ok((await post('/api/profile', { professionId: 'product-manager', level: 'middle' }, 'PATCH')).status === 200, 'профессия и уровень сохранены в профиле');
+let page = await (await req('/dashboard')).text();
+ok(page.includes('Целевая профессия') && page.includes('Продакт-менеджер') && page.includes('Middle'), 'в шапке показаны профессия и уровень');
+ok(page.includes('Подготовьте резюме для поиска работы') && page.includes('Загрузить резюме'), 'empty state дашборда без резюме');
+for (const t of ['Главная', 'Моё резюме', 'Вакансии', 'Сопроводительное письмо', 'Собеседование', 'Настройки']) ok(page.includes(t), `меню: ${t}`);
+
+// Загрузка резюме
+async function upload(name, type, bytes) {
+  const fd = new FormData();
+  fd.append('file', new Blob([bytes], { type }), name);
+  return req('/api/resume', { method: 'POST', body: fd });
+}
+ok((await upload('x.exe', 'application/octet-stream', Buffer.from('hello world '.repeat(20)))).status === 400, 'неподдерживаемый формат отклонён');
+ok((await upload('bad.pdf', 'application/pdf', Buffer.from('not a pdf'))).status === 422, 'битый PDF → понятная ошибка');
+r = await upload('resume.pdf', 'application/pdf', readFileSync('tests/fixtures/resume.pdf'));
+let d = await jsonOf(r);
+ok(r.status === 200 && d.analysis?.score > 0, `PDF: текст извлечён и проанализирован (оценка ${d.analysis?.score})`);
+r = await upload('resume.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', readFileSync('tests/fixtures/resume.docx'));
+d = await jsonOf(r);
+ok(r.status === 200 && d.analysis?.score > 0, `DOCX: текст извлечён и проанализирован (оценка ${d.analysis?.score})`);
+const a = d.analysis;
+ok(Object.keys(a.breakdown).length === 6, 'оценка разбита на 6 критериев');
+ok(a.improvements.length >= 3 && a.improvements.length <= 5, `3–5 рекомендаций (${a.improvements.length})`);
+ok(a.strengths.length > 0 && Array.isArray(a.missingSkills) && a.experienceTips.length > 0, 'есть сильные стороны, недостающие навыки, рекомендации по опыту');
+page = await (await req('/dashboard')).text();
+ok(page.includes('resume.docx') && page.includes('Общая оценка') && page.includes('Что улучшить') && page.includes('Улучшить резюме'), 'дашборд после загрузки: файл, оценка, рекомендации, кнопка');
+
+// Вакансия
+const vacancy = readFileSync('tests/fixtures/vacancy.txt', 'utf8');
+ok((await post('/api/vacancies', { text: 'коротко' })).status === 400, 'слишком короткая вакансия отклонена');
+r = await post('/api/vacancies', { text: vacancy });
+d = await jsonOf(r);
+ok(r.status === 200 && d.id, 'вакансия проанализирована');
+const vid = d.id;
+page = await (await req(`/vacancies/${vid}`)).text();
+ok(/Соответствие вакансии/.test(page) && page.includes('Адаптировать резюме') && page.includes('Чего не хватает') && page.includes('Что есть в вашем резюме') && page.includes('Что стоит изменить'), 'страница анализа вакансии содержит все блоки');
+const vrow = (await (await req('/vacancies')).text());
+ok(vrow.includes('Продуктовый менеджер'), 'вакансия в списке');
+
+// Адаптация
+r = await post(`/api/vacancies/${vid}/adapt`, {});
+d = await jsonOf(r);
+ok(r.status === 200 && d.id && d.changes >= 1, `адаптация создана (правок: ${d.changes})`);
+const aid = d.id;
+page = await (await req(`/vacancies/${vid}/adapt`)).text();
+ok(page.includes('Исходное резюме') && page.includes('Адаптированное резюме'), 'показаны две версии резюме');
+const pdf0 = await req(`/api/adaptations/${aid}/pdf`);
+ok(pdf0.status === 200 && pdf0.headers.get('content-type') === 'application/pdf', 'экспорт PDF работает');
+const pdfBuf = Buffer.from(await pdf0.arrayBuffer());
+ok(pdfBuf.subarray(0, 4).toString() === '%PDF', 'PDF валиден');
+// принять/отклонить/редактировать
+d = await jsonOf(await post(`/api/adaptations/${aid}`, { all: 'accepted' }, 'PATCH'));
+const ch = d.changes;
+ok(ch.every((c) => c.status === 'accepted'), 'принять все');
+const sk = ch.find((c) => c.section === 'Навыки');
+if (sk) {
+  const sa = sk.adapted.split(/[,;]\s*/).sort().join(); const so = sk.original.split(/[,;]\s*/).sort().join();
+  ok(sa === so, 'навыки только переупорядочены — состав не изменился (нет выдуманных навыков)');
+}
+const ins = ch.find((c) => c.kind === 'insert');
+if (ins) ok(!/Kubernetes|Kafka/.test(ins.adapted), 'в «О себе» нет навыков, которых нет в резюме');
+d = await jsonOf(await post(`/api/adaptations/${aid}`, { changeId: ch[0].id, status: 'rejected' }, 'PATCH'));
+ok(d.changes[0].status === 'rejected' && !d.finalText.includes(ch[0].adapted.trim()) || ch[0].kind === 'insert', 'отклонение правки убирает её из итога');
+d = await jsonOf(await post(`/api/adaptations/${aid}`, { changeId: ch[0].id, edited: 'Моя ручная правка' }, 'PATCH'));
+ok(d.changes[0].status === 'accepted' && d.finalText.includes('Моя ручная правка'), 'ручное редактирование попадает в итоговый текст');
+const pdf1 = Buffer.from(await (await req(`/api/adaptations/${aid}/pdf`)).arrayBuffer());
+ok(pdf1.length > 1000, 'PDF итоговой версии скачивается');
+
+// Письмо
+const styles = {};
+for (const style of ['professional', 'short', 'personal']) {
+  r = await post('/api/cover-letters', { vacancyId: vid, style });
+  d = await jsonOf(r);
+  styles[style] = d.text;
+  ok(r.status === 200 && d.text.length > 80, `письмо (${style}): ${d.text?.length} символов`);
+}
+ok(styles.short.length < styles.professional.length, 'краткий стиль короче профессионального');
+ok(styles.professional.includes('Анна Иванова') && styles.professional.includes('ФинПлюс'), 'письмо использует имя пользователя и компанию вакансии');
+ok(!/Kubernetes|Kafka/.test(Object.values(styles).join(' ')), 'в письме нет навыков, отсутствующих в резюме');
+r = await post('/api/cover-letters', { vacancyId: vid, style: 'professional' });
+ok((await jsonOf(r)).text !== styles.professional, 'перегенерация даёт новый вариант');
+const lid = (await jsonOf(await post('/api/cover-letters', { vacancyId: vid, style: 'short' }))).id;
+ok((await post(`/api/cover-letters/${lid}`, { text: 'Отредактированное письмо' }, 'PATCH')).status === 200, 'редактирование письма сохраняется');
+page = await (await req(`/cover-letter?vacancy=${vid}`)).text();
+ok(page.includes('Отредактированное письмо'), 'отредактированное письмо отображается после перезагрузки');
+
+// Собеседование
+for (const type of ['hr', 'professional', 'manager']) {
+  d = await jsonOf(await req(`/api/interview/questions?type=${type}`));
+  ok(d.questions.length > 0 && d.questions.every((q) => q.keyPoints.length && q.sampleAnswer && q.category && q.difficulty), `вопросы ${type}: ${d.questions.length}, у каждого пример ответа, ключевые пункты, категория, сложность`);
+  if (type === 'professional') ok(d.questions.some((q) => /A\/B/.test(q.text)) && d.questions.some((q) => /Product Discovery/.test(q.text)), 'PM Middle Professional: есть вопросы про A/B и Product Discovery');
+  if (type === 'hr') ok(d.questions.some((q) => q.text === 'Расскажите о себе.'), 'HR: «Расскажите о себе.»');
+}
+d = await jsonOf(await req('/api/interview/questions?type=professional'));
+const q = d.questions.find((x) => /A\/B/.test(x.text));
+r = await post('/api/interview/answer', { questionId: q.id, answer: 'Перед запуском я фиксирую гипотезу и целевую метрику, считаю размер выборки. После теста проверяю статистическую значимость, смотрю guardrail-метрики и принимаю решение: раскатить или доработать. Например, в онбординге конверсия выросла с 2% до 3,5%.' });
+d = await jsonOf(r);
+ok(r.status === 200 && d.feedback.score >= 60, `тренажёр: сильный ответ оценён (${d.feedback?.score})`);
+r = await post('/api/interview/answer', { questionId: q.id, answer: 'не знаю' });
+const weak = (await jsonOf(r)).feedback;
+ok(weak.score < 40 && weak.missed.length > 0 && weak.tips.length > 0, `тренажёр: слабый ответ получает низкую оценку и советы (${weak.score})`);
+
+// Смена профессии и уровня
+ok((await post('/api/profile', { professionId: 'software-developer', level: 'junior' }, 'PATCH')).status === 200, 'смена профессии/уровня');
+d = await jsonOf(await req('/api/interview/questions?type=professional'));
+ok(d.questions.some((x) => /ООП/.test(x.text)) && !d.questions.some((x) => /Product Discovery/.test(x.text)), 'после смены профессии вопросы другие (Developer Junior)');
+page = await (await req('/resume')).text();
+ok(page.includes('Пересчитать под новую профессию'), 'резюме помечено как устаревшее после смены профессии');
+d = await jsonOf(await req('/api/resume', { method: 'PUT' }));
+ok(d.analysis.score > 0, 'пересчёт анализа под новую профессию');
+page = await (await req('/resume')).text();
+ok(!page.includes('Пересчитать под новую профессию'), 'после пересчёта предупреждение исчезло');
+for (const p of ['/settings', '/interview', '/cover-letter', '/vacancies']) ok((await req(p)).status === 200, `страница ${p} открывается`);
+
+// Изоляция данных и logout
+const saved = cookie;
+await post('/api/auth/logout', {});
+cookie = '';
+ok((await req(`/api/adaptations/${aid}/pdf`)).status === 401, 'без сессии API → 401');
+await post('/api/auth/register', { name: 'Другой', email: 'other_' + email, password: 'password123' });
+await post('/api/profile', { professionId: 'accountant', level: 'senior' }, 'PATCH');
+ok((await req(`/vacancies/${vid}`)).status === 404, 'чужая вакансия недоступна');
+ok((await req(`/api/adaptations/${aid}/pdf`)).status === 404, 'чужая адаптация недоступна');
+ok((await post('/api/cover-letters', { vacancyId: vid, style: 'short' })).status === 404, 'нельзя создать письмо к чужой вакансии');
+cookie = saved;
+r = await post('/api/auth/login', { email, password: 'wrong-pass' });
+ok(r.status === 401, 'неверный пароль отклонён');
+ok((await post('/api/auth/login', { email, password: 'password123' })).status === 200, 'повторный вход');
+
+console.log(failed ? `\n${failed} проверок провалено` : '\nВсе проверки пройдены');
+process.exit(failed ? 1 : 0);
