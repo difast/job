@@ -1,0 +1,54 @@
+'use client';
+import { useRouter } from 'next/navigation';
+import { createContext, useCallback, useContext, useState } from 'react';
+import Icon from './Icon';
+import LevelPicker from './LevelPicker';
+import Modal from './Modal';
+import ProfessionPicker from './ProfessionPicker';
+import { Alert, Button, Spinner } from './ui';
+import type { LevelKey } from '@/lib/types';
+
+interface Goal { professionId: string; professionName: string; level: LevelKey }
+const Ctx = createContext<{ openGoal: () => void } | null>(null);
+export const useGoal = () => useContext(Ctx)!;
+
+/** Профессия — основа интерфейса: один диалог смены цели на всё приложение. */
+export function GoalProvider({ goal, children }: { goal: Goal; children: React.ReactNode }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [prof, setProf] = useState(goal.professionId);
+  const [lvl, setLvl] = useState<LevelKey>(goal.level);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const close = useCallback(() => setOpen(false), []);
+  const openGoal = useCallback(() => { setProf(goal.professionId); setLvl(goal.level); setError(''); setOpen(true); }, [goal]);
+  const changed = prof !== goal.professionId || lvl !== goal.level;
+
+  async function save() {
+    setBusy(true); setError('');
+    const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ professionId: prof, level: lvl }) });
+    setBusy(false);
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить цель'); return; }
+    setOpen(false); router.refresh();
+  }
+
+  return (
+    <Ctx.Provider value={{ openGoal }}>
+      {children}
+      <Modal open={open} onClose={close} title="Ваша цель" description="От цели зависят оценка резюме, требования и вопросы для собеседования."
+        footer={<><Button variant="ghost" onClick={close}>Отмена</Button><Button onClick={save} disabled={busy || !changed}>{busy && <Spinner />}{busy ? 'Обновляем рекомендации…' : 'Сохранить'}</Button></>}>
+        <ProfessionPicker value={prof} onChange={(id) => setProf(id)} maxHeight="38dvh" />
+        <h3 className="mb-3 mt-7 text-sm font-medium">Уровень</h3>
+        <LevelPicker value={lvl} onChange={setLvl} />
+        {changed && <Alert tone="info" className="mt-5">Резюме будет заново оценено под новую цель, а вопросы для собеседования обновятся.</Alert>}
+        {error && <Alert className="mt-5">{error}</Alert>}
+      </Modal>
+    </Ctx.Provider>
+  );
+}
+
+export function ChangeGoalButton({ variant = 'secondary', size = 'sm', label = 'Изменить цель' }: { variant?: 'secondary' | 'ghost'; size?: 'sm' | 'md'; label?: string }) {
+  const { openGoal } = useGoal();
+  const cls = `inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors ${size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-sm'} ${variant === 'secondary' ? 'border border-line-strong bg-white text-ink hover:bg-subtle' : 'text-ink-2 hover:bg-subtle hover:text-ink'}`;
+  return <button type="button" onClick={openGoal} className={cls}><Icon name="edit" size={14} />{label}</button>;
+}

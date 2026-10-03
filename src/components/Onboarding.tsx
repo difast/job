@@ -1,10 +1,12 @@
 'use client';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import ProfessionPicker from './ProfessionPicker';
+import Icon from './Icon';
 import LevelPicker from './LevelPicker';
-import { Button, Spinner } from './ui';
-import type { LevelKey } from '@/lib/types';
+import ProfessionPicker from './ProfessionPicker';
+import { Alert, Button, Logo, Spinner, cx } from './ui';
+import { LEVEL_SHORT, type LevelKey } from '@/lib/types';
 
 export default function Onboarding({ name }: { name: string }) {
   const router = useRouter();
@@ -19,39 +21,56 @@ export default function Onboarding({ name }: { name: string }) {
     if (!profId || !level) return;
     setBusy(true); setError('');
     const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ professionId: profId, level }) });
-    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить'); setBusy(false); return; }
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить. Попробуйте ещё раз.'); setBusy(false); return; }
     router.push('/dashboard');
     router.refresh();
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-4 py-10 sm:py-16">
-      <div className="mb-8 flex items-center gap-2 text-sm text-muted">
-        <span className={step === 1 ? 'font-medium text-accent-600' : ''}>1. Профессия</span><span>→</span>
-        <span className={step === 2 ? 'font-medium text-accent-600' : ''}>2. Уровень</span>
+    <div className="min-h-dvh">
+      <header className="border-b border-line bg-white">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-5 sm:px-8">
+          <Link href="/" aria-label="На главную"><Logo /></Link>
+          <div className="flex items-center gap-2 text-[13px] text-muted" aria-label={`Шаг ${step} из 2`}>
+            <span>Шаг {step} из 2</span>
+            <span className="flex gap-1">{[1, 2].map((i) => <span key={i} className={cx('h-1 w-6 rounded-full transition-colors', i <= step ? 'bg-accent-600' : 'bg-line-strong')} />)}</span>
+          </div>
+        </div>
+      </header>
+      <main className="page-in mx-auto max-w-3xl px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
+        {step === 1 ? (
+          <>
+            <h1 className="text-[28px] font-semibold tracking-tight">{name}, кем вы хотите работать?</h1>
+            <p className="mb-8 mt-2 max-w-xl text-[15px] text-ink-2">Мы адаптируем анализ резюме, письма и подготовку к собеседованию под выбранную профессию.</p>
+            <ProfessionPicker value={profId} onChange={(id, n) => { setProfId(id); setProfName(n); }} />
+          </>
+        ) : (
+          <>
+            <h1 className="text-[28px] font-semibold tracking-tight">Какой у вас уровень?</h1>
+            <p className="mb-8 mt-2 max-w-xl text-[15px] text-ink-2">Профессия: <b className="font-medium text-ink">{profName}</b>. От уровня зависят критерии оценки резюме и сложность вопросов на собеседовании.</p>
+            <LevelPicker value={level} onChange={setLevel} />
+            {error && <Alert className="mt-5">{error}</Alert>}
+          </>
+        )}
+      </main>
+      <div className="safe-bottom fixed inset-x-0 bottom-0 border-t border-line bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
+          {step === 1 ? (
+            <>
+              <span className="min-w-0 truncate text-sm text-ink-2">{profName ? <>Выбрано: <b className="font-medium text-ink">{profName}</b></> : 'Выберите профессию из списка'}</span>
+              <Button disabled={!profId} onClick={() => setStep(2)}>Далее<Icon name="arrow-right" size={15} /></Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setStep(1)}><Icon name="arrow-left" size={15} />Назад</Button>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="hidden truncate text-sm text-ink-2 sm:block">{profName}{level ? ` · ${LEVEL_SHORT[level]}` : ''}</span>
+                <Button disabled={!level || busy} onClick={finish}>{busy && <Spinner />}Перейти в кабинет</Button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-      {step === 1 ? (
-        <>
-          <h1 className="text-2xl font-semibold tracking-tight">{name}, кем вы хотите работать?</h1>
-          <p className="mb-6 mt-1 text-sm text-muted">Мы адаптируем резюме, письма и подготовку к собеседованию под выбранную профессию.</p>
-          <ProfessionPicker value={profId} onChange={(id, n) => { setProfId(id); setProfName(n); }} />
-          <div className="sticky bottom-0 -mx-4 mt-6 flex items-center justify-between border-t border-line bg-surface/90 px-4 py-4 backdrop-blur">
-            <span className="text-sm text-muted">{profName ? `Выбрано: ${profName}` : 'Выберите профессию'}</span>
-            <Button disabled={!profId} onClick={() => setStep(2)}>Далее</Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <h1 className="text-2xl font-semibold tracking-tight">Какой у вас уровень?</h1>
-          <p className="mb-6 mt-1 text-sm text-muted">Профессия: <b className="text-ink">{profName}</b>. От уровня зависят оценка резюме и вопросы на собеседовании.</p>
-          <LevelPicker value={level} onChange={setLevel} />
-          {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <div className="mt-8 flex justify-between">
-            <Button variant="ghost" onClick={() => setStep(1)}>Назад</Button>
-            <Button disabled={!level || busy} onClick={finish}>{busy && <Spinner />}Перейти к дашборду</Button>
-          </div>
-        </>
-      )}
-    </main>
+    </div>
   );
 }

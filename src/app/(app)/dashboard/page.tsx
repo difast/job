@@ -2,70 +2,70 @@ import Link from 'next/link';
 import { requirePageUser } from '@/lib/auth';
 import { latestResume } from '@/lib/context';
 import { db } from '@/lib/db';
-import { parseJson, type ResumeAnalysis } from '@/lib/types';
-import { Card, EmptyState, PageHeader, Badge } from '@/components/ui';
+import { greeting } from '@/lib/format';
+import { LEVEL_SHORT, parseJson, type LevelKey, type ResumeAnalysis } from '@/lib/types';
+import { Card, LinkButton, Meter, PageHeader, ScoreRing } from '@/components/ui';
+import Icon, { type IconName } from '@/components/Icon';
+import { ChangeGoalButton } from '@/components/GoalContext';
 import ResumeUploader from '@/components/ResumeUploader';
-import { ImprovementList, ScoreCard } from '@/components/ResumeAnalysisView';
 
 export default async function Dashboard() {
   const user = await requirePageUser();
-  const resume = await latestResume(user.id);
+  const [resume, lastVacancy] = await Promise.all([
+    latestResume(user.id),
+    db.vacancy.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, select: { id: true, title: true } }),
+  ]);
+  const a = resume ? parseJson<ResumeAnalysis>(resume.analysis, null as unknown as ResumeAnalysis) : null;
+  const profession = user.profession!.name;
 
-  if (!resume) {
-    return (
-      <>
-        <PageHeader title={`Здравствуйте, ${user.name.split(' ')[0]}`} />
-        <EmptyState
-          title="Подготовьте резюме для поиска работы"
-          text="Загрузите своё резюме, и мы проанализируем его с учётом вашей целевой профессии."
-          action={<ResumeUploader />}
-        />
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {[['1', 'Загрузите резюме', 'Оценка по 6 критериям под вашу профессию'], ['2', 'Добавьте вакансию', 'Покажем соответствие и чего не хватает'], ['3', 'Адаптируйте и откликайтесь', 'Резюме, письмо и подготовка к интервью']].map(([n, t, d]) => (
-            <Card key={n}><div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent-50 text-xs font-semibold text-accent-700">{n}</div><div className="text-sm font-medium">{t}</div><div className="mt-0.5 text-sm text-muted">{d}</div></Card>
-          ))}
-        </div>
-      </>
-    );
-  }
-
-  const a = parseJson<ResumeAnalysis>(resume.analysis, null as unknown as ResumeAnalysis);
-  const stale = resume.professionId !== user.professionId || resume.level !== user.level;
-  const vacancies = await db.vacancy.count({ where: { userId: user.id } });
+  const actions: { href: string; icon: IconName; title: string; text: string }[] = [
+    { href: '/vacancies', icon: 'search', title: 'Проанализировать вакансию', text: 'Сравните резюме с требованиями и узнайте процент соответствия.' },
+    { href: lastVacancy ? `/vacancies/${lastVacancy.id}` : '/vacancies', icon: 'layers', title: 'Адаптировать резюме', text: lastVacancy ? `Под вакансию «${lastVacancy.title}».` : 'Подстройте формулировки под конкретную вакансию.' },
+    { href: '/cover-letter', icon: 'mail', title: 'Создать сопроводительное', text: 'Письмо на основе вашего резюме и вакансии.' },
+    { href: '/interview', icon: 'mic', title: 'Тренировать собеседование', text: 'Вопросы и разбор ответов для вашей профессии.' },
+  ];
 
   return (
     <>
-      <PageHeader title="Главная" subtitle="Состояние вашей подготовки к поиску работы" />
-      <Card className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-wider text-muted">Моё резюме</div>
-          <div className="mt-1 font-medium" data-testid="resume-file-name">{resume.fileName}</div>
-          <div className="text-sm text-muted">{user.name}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {stale && <Badge tone="amber">Оценка для прежней профессии</Badge>}
-          <Link href="/resume" className="text-sm font-medium text-accent-600 hover:underline">Подробный анализ →</Link>
-        </div>
-      </Card>
-      <div className="space-y-5">
-        <ScoreCard a={a} />
-        <Card>
-          <h2 className="mb-4 text-sm font-semibold text-muted">Что улучшить</h2>
-          <ImprovementList items={a.improvements} limit={5} />
-          <div className="mt-5"><Link href="/resume" className="inline-flex h-10 items-center rounded-lg bg-accent-600 px-4 text-sm font-medium text-white hover:bg-accent-700">Улучшить резюме</Link></div>
-        </Card>
-        <div className="grid gap-5 sm:grid-cols-2">
+      <PageHeader
+        title={`${greeting()}, ${user.name.split(' ')[0]}`}
+        subtitle={<span className="inline-flex flex-wrap items-center gap-x-3 gap-y-2"><span data-testid="goal-line">Ваша цель: <b className="font-medium text-ink">{profession} · {LEVEL_SHORT[user.level as LevelKey]}</b></span><ChangeGoalButton /></span>}
+      />
+      <div className="stagger space-y-8">
+        {!resume || !a ? (
+          <ResumeUploader goalLabel={profession} />
+        ) : (
           <Card>
-            <div className="text-sm font-semibold">Вакансии</div>
-            <p className="mt-1 text-sm text-muted">{vacancies ? `Проанализировано вакансий: ${vacancies}` : 'Вставьте описание вакансии — покажем соответствие и адаптируем резюме.'}</p>
-            <Link href="/vacancies" className="mt-3 inline-block text-sm font-medium text-accent-600 hover:underline">Перейти к вакансиям →</Link>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="min-w-0"><h2 className="text-[13px] font-medium text-muted">Резюме</h2><div className="mt-0.5 truncate text-sm text-ink-2" data-testid="resume-file-name">{resume.fileName}</div></div>
+              <LinkButton href="/resume" variant="secondary" size="sm" className="hidden sm:inline-flex">Посмотреть анализ</LinkButton>
+            </div>
+            <div className="flex flex-col gap-7 sm:flex-row sm:items-center sm:gap-10">
+              <div data-testid="resume-score"><ScoreRing value={a.score} size={128} stroke={8} /></div>
+              <div className="grid flex-1 gap-x-10 gap-y-4 sm:grid-cols-2">
+                <Meter label="Структура" value={a.breakdown.structure} />
+                <Meter label="Опыт" value={a.breakdown.experience} />
+                <Meter label="Навыки" value={a.breakdown.skills} />
+                <Meter label="Достижения" value={a.breakdown.achievements} />
+              </div>
+            </div>
+            <LinkButton href="/resume" className="mt-6 w-full sm:hidden">Посмотреть анализ</LinkButton>
           </Card>
-          <Card>
-            <div className="text-sm font-semibold">Собеседование</div>
-            <p className="mt-1 text-sm text-muted">Банк вопросов и тренажёр ответов для вашей профессии и уровня.</p>
-            <Link href="/interview" className="mt-3 inline-block text-sm font-medium text-accent-600 hover:underline">Начать подготовку →</Link>
-          </Card>
-        </div>
+        )}
+
+        <section aria-labelledby="qa">
+          <h2 id="qa" className="mb-3 text-lg font-semibold tracking-tight">Что дальше</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {actions.map((x) => (
+              <Link key={x.title} href={x.href} className="group flex flex-col rounded-xl border border-line bg-white p-5 shadow-card transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_20px_-10px_rgba(14,17,32,0.2)]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-50 text-accent-600 transition-colors group-hover:bg-accent-100"><Icon name={x.icon} size={19} /></span>
+                <h3 className="mt-4 text-[15px] font-semibold leading-snug tracking-tight">{x.title}</h3>
+                <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-ink-2">{x.text}</p>
+                <span className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium text-accent-600">Открыть<Icon name="arrow-right" size={14} className="transition-transform group-hover:translate-x-0.5" /></span>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

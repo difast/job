@@ -2,7 +2,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button, Spinner } from './ui';
+import Icon from './Icon';
+import { ProductPreview } from './landing';
+import { Alert, Button, Logo, Spinner } from './ui';
+
+const input = 'h-11 w-full rounded-lg border border-line-strong bg-white px-3.5 text-[15px] outline-none transition-shadow placeholder:text-muted focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]';
 
 export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
@@ -14,45 +18,54 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     e.preventDefault();
     setBusy(true); setError('');
     const f = new FormData(e.currentTarget);
-    const res = await fetch(`/api/auth/${mode}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(f)),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(data.error ?? 'Что-то пошло не так'); setBusy(false); return; }
-    router.push(isReg || data.onboarded === false ? '/onboarding' : '/dashboard');
-    router.refresh();
+    try {
+      const res = await fetch(`/api/auth/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(f)) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error ?? 'Что-то пошло не так. Попробуйте ещё раз.'); setBusy(false); return; }
+      router.push(isReg || data.onboarded === false ? '/onboarding' : '/dashboard');
+      router.refresh();
+    } catch { setError('Нет соединения с сервером. Проверьте интернет и повторите.'); setBusy(false); }
   }
 
-  const input = 'h-10 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-100';
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-accent-600 text-lg font-bold text-white">К</div>
-          <h1 className="text-2xl font-semibold tracking-tight">{isReg ? 'Создайте аккаунт' : 'С возвращением'}</h1>
-          <p className="mt-1 text-sm text-muted">{isReg ? 'Подготовьтесь к поиску работы под вашу профессию' : 'Войдите, чтобы продолжить подготовку'}</p>
-        </div>
-        <form onSubmit={submit} className="space-y-4 rounded-xl border border-line bg-white p-6 shadow-sm">
-          {isReg && (
-            <label className="block text-sm font-medium">Имя
-              <input name="name" required autoComplete="name" className={`${input} mt-1.5`} placeholder="Анна Иванова" />
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <main className="flex flex-col px-5 py-6 sm:px-10">
+        <Link href="/" aria-label="На главную" className="w-fit"><Logo /></Link>
+        <div className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center py-10">
+          <h1 className="text-[28px] font-semibold tracking-tight">{isReg ? 'Создайте аккаунт' : 'С возвращением'}</h1>
+          <p className="mt-2 text-[15px] text-ink-2">{isReg ? 'Подготовьтесь к поиску работы под вашу профессию. Это бесплатно.' : 'Войдите, чтобы продолжить подготовку.'}</p>
+          <form onSubmit={submit} className="mt-8 space-y-4" noValidate={false}>
+            {isReg && (
+              <label className="block text-sm font-medium">Имя
+                <input name="name" required autoComplete="name" className={`${input} mt-1.5`} placeholder="Анна Иванова" />
+              </label>
+            )}
+            <label className="block text-sm font-medium">E-mail
+              <input name="email" type="email" required autoComplete="email" className={`${input} mt-1.5`} placeholder="you@example.com" />
             </label>
-          )}
-          <label className="block text-sm font-medium">E-mail
-            <input name="email" type="email" required autoComplete="email" className={`${input} mt-1.5`} placeholder="you@example.com" />
-          </label>
-          <label className="block text-sm font-medium">Пароль
-            <input name="password" type="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={`${input} mt-1.5`} placeholder={isReg ? 'Минимум 8 символов' : ''} />
-          </label>
-          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <Button type="submit" disabled={busy} className="w-full">{busy && <Spinner />}{isReg ? 'Зарегистрироваться' : 'Войти'}</Button>
-        </form>
-        <p className="mt-5 text-center text-sm text-muted">
-          {isReg ? 'Уже есть аккаунт? ' : 'Нет аккаунта? '}
-          <Link href={isReg ? '/login' : '/register'} className="font-medium text-accent-600 hover:underline">{isReg ? 'Войти' : 'Зарегистрироваться'}</Link>
-        </p>
-      </div>
-    </main>
+            <label className="block text-sm font-medium">Пароль
+              <input name="password" type="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={`${input} mt-1.5`} placeholder={isReg ? 'Минимум 8 символов' : 'Ваш пароль'} />
+            </label>
+            {error && <Alert>{error}</Alert>}
+            <Button type="submit" size="lg" disabled={busy} className="w-full">{busy && <Spinner />}{isReg ? 'Зарегистрироваться' : 'Войти'}</Button>
+          </form>
+          <p className="mt-6 text-sm text-ink-2">
+            {isReg ? 'Уже есть аккаунт? ' : 'Нет аккаунта? '}
+            <Link href={isReg ? '/login' : '/register'} className="font-medium text-accent-600 hover:underline">{isReg ? 'Войти' : 'Зарегистрироваться'}</Link>
+          </p>
+          {isReg && <p className="mt-6 text-xs leading-relaxed text-muted">Регистрируясь, вы соглашаетесь с <Link href="/terms" className="underline underline-offset-2 hover:text-ink">условиями использования</Link> и <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">политикой конфиденциальности</Link>.</p>}
+        </div>
+      </main>
+      <aside className="hidden border-l border-line bg-white lg:flex lg:flex-col lg:justify-center lg:px-12 xl:px-16">
+        <div className="mx-auto w-full max-w-[520px]">
+          <ProductPreview />
+          <ul className="mt-8 space-y-3 text-sm text-ink-2">
+            {['Оценка резюме с учётом вашей профессии и уровня', 'Адаптация под вакансию без выдуманных фактов', 'Вопросы для собеседования и тренажёр ответов'].map((t) => (
+              <li key={t} className="flex items-center gap-2.5"><Icon name="check-circle" size={16} className="shrink-0 text-accent-600" />{t}</li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+    </div>
   );
 }

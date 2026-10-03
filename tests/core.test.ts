@@ -90,3 +90,14 @@ test('справочники: 38 профессий, у каждой данны�
     assert.ok(q.keyPoints.length >= 2 && q.sampleAnswer && q.category, q.text);
   }
 });
+
+test('требования выделяются из блока «Требования» — без обязанностей и условий (кириллица в границах слов)', () => {
+  const reqs = extractRequirementLines(vacancy);
+  assert.equal(reqs.length, 6);
+  assert.ok(!reqs.some((r) => /Гибрид|ДМС|Управлять roadmap|Работать с командой/.test(r)));
+});
+
+test('стаж считается по разделу «Опыт», годы учёбы не входят', () => {
+  const a = analyzeVacancyHeuristic('Требования:\n- Опыт от 10 лет\n- SQL', resume, ctx);
+  assert.equal(a.requirements[0].status, 'missing'); // ~7 лет по опыту, а не 11 с учётом образования
+});

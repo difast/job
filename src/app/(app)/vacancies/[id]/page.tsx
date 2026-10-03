@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requirePageUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
 import { PageHeader } from '@/components/ui';
+import Icon from '@/components/Icon';
 import VacancyAnalysisView from '@/components/VacancyAnalysisView';
 import VacancyActions from '@/components/VacancyActions';
 
@@ -15,13 +15,12 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
   const a = parseJson<VacancyAnalysis>(v.analysis, null as unknown as VacancyAnalysis);
   return (
     <>
-      <Link href="/vacancies" className="mb-3 inline-block text-sm text-muted hover:text-ink">← Все вакансии</Link>
-      <PageHeader title={v.title} subtitle="Результат сравнения вашего резюме с вакансией" />
-      <div className="mb-6"><VacancyActions id={v.id} hasAdaptation={!!v.adaptation} /></div>
+      <PageHeader back={{ href: '/vacancies', label: 'Все вакансии' }} title={v.title} subtitle="Результат сравнения вашего резюме с вакансией" />
+      <div className="mb-8"><VacancyActions id={v.id} hasAdaptation={!!v.adaptation} /></div>
       <VacancyAnalysisView a={a} />
-      <details className="mt-8 rounded-xl border border-line bg-white p-5">
-        <summary className="cursor-pointer text-sm font-medium">Текст вакансии</summary>
-        <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap text-sm text-slate-700">{v.text}</pre>
+      <details className="group mt-10 border-t border-line pt-6">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink"><Icon name="chevron-right" size={15} className="transition-transform group-open:rotate-90" />Текст вакансии</summary>
+        <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-white p-5 text-[13px] leading-relaxed text-ink-2">{v.text}</pre>
       </details>
     </>
   );

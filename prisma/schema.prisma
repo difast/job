@@ -104,6 +104,7 @@ model Resume {
   analysis     String // JSON ResumeAnalysis
   professionId String // для какой профессии/уровня сделан анализ
   level        String
+  analyzedAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
   adaptations Adaptation[]

@@ -1,7 +1,6 @@
-import Link from 'next/link';
 import { requirePageUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { EmptyState, PageHeader } from '@/components/ui';
+import { EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import CoverLetterClient from '@/components/CoverLetterClient';
 import type { LetterStyle } from '@/lib/types';
 
@@ -14,10 +13,10 @@ export default async function CoverLetterPage({ searchParams }: { searchParams: 
   });
   return (
     <>
-      <PageHeader title="Сопроводительное письмо" subtitle="Выберите проанализированную вакансию и стиль — письмо учтёт ваше резюме, профессию и уровень." />
+      <PageHeader title="Сопроводительное письмо" subtitle="Выберите вакансию — письмо учтёт ваше резюме, профессию и уровень." />
       {vacancies.length === 0 ? (
-        <EmptyState title="Сначала добавьте вакансию" text="Письмо создаётся под конкретную вакансию. Вставьте её описание в разделе «Вакансии»."
-          action={<Link href="/vacancies" className="inline-flex h-10 items-center rounded-lg bg-accent-600 px-4 text-sm font-medium text-white hover:bg-accent-700">Перейти к вакансиям</Link>} />
+        <EmptyState icon="mail" title="Сначала добавьте вакансию" text="Письмо создаётся под конкретную вакансию. Вставьте её описание в разделе «Вакансии» — это займёт минуту."
+          action={<LinkButton href="/vacancies" size="lg">Добавить вакансию</LinkButton>} />
       ) : (
         <CoverLetterClient
           key={vacancy ?? 'x'}

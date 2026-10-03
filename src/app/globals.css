@@ -1,25 +1,81 @@
 @import "tailwindcss";
 
+/* ───────── Дизайн-токены ─────────
+   Один акцентный цвет (индиго), спокойная нейтральная шкала, семантика для статусов. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --color-accent-50: #eef2ff;
-  --color-accent-100: #e0e7ff;
-  --color-accent-200: #c7d2fe;
-  --color-accent-500: #6366f1;
-  --color-accent-600: #4f46e5;
-  --color-accent-700: #4338ca;
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-line: #e5e7eb;
-  --color-surface: #fafafa;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+
+  --color-canvas: #f8f8fa;
+  --color-ink: #0e1120;
+  --color-ink-2: #444a5e;
+  --color-muted: #7a8095;
+  --color-line: #e6e8ee;
+  --color-line-strong: #d3d6e0;
+  --color-subtle: #f3f4f8;
+
+  --color-accent-50: #f0f1ff;
+  --color-accent-100: #e3e5ff;
+  --color-accent-200: #c9ccff;
+  --color-accent-500: #5b5bf0;
+  --color-accent-600: #4a45e0;
+  --color-accent-700: #3d38c4;
+
+  --color-ok: #137a58;
+  --color-ok-soft: #e8f6f0;
+  --color-warn: #a35a0b;
+  --color-warn-soft: #fdf3e3;
+  --color-bad: #b83a32;
+  --color-bad-soft: #fcecea;
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgba(14, 17, 32, 0.04);
+  --shadow-pop: 0 12px 40px -8px rgba(14, 17, 32, 0.18), 0 2px 6px rgba(14, 17, 32, 0.06);
 }
 
-html { -webkit-text-size-adjust: 100%; }
-body { background: var(--color-surface); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  background: var(--color-canvas); color: var(--color-ink);
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.55; letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { letter-spacing: -0.022em; }
 ::selection { background: var(--color-accent-100); }
-button { cursor: pointer; }
+button { cursor: pointer; font: inherit; }
 button:disabled { cursor: not-allowed; }
-:focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; border-radius: 6px; }
+textarea, input, select { font: inherit; }
+.tabular { font-variant-numeric: tabular-nums; }
 
-.diff-del { background: #fee2e2; color: #991b1b; text-decoration: line-through; text-decoration-color: #fca5a5; border-radius: 3px; padding: 0 2px; }
-.diff-ins { background: #dcfce7; color: #166534; border-radius: 3px; padding: 0 2px; }
+/* ───────── Движение (умеренно, с учётом prefers-reduced-motion) ───────── */
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ring-in { from { stroke-dashoffset: var(--ring-c); } to { stroke-dashoffset: var(--ring-o); } }
+@keyframes bar-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+.page-in { animation: page-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.fade-in { animation: fade-in 0.18s ease-out both; }
+.sheet-in { animation: sheet-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.ring-anim { animation: ring-in 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.bar-anim { transform-origin: left; animation: bar-in 0.7s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.skeleton {
+  background: linear-gradient(90deg, #eceef3 25%, #f6f7fa 50%, #eceef3 75%); background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite; border-radius: 8px;
+}
+.indeterminate { animation: indeterminate 1.3s ease-in-out infinite; }
+.stagger > * { animation: page-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; } .stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; } .stagger > *:nth-child(5) { animation-delay: 160ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
+/* Подсветка diff в адаптации резюме */
+.diff-del { background: var(--color-bad-soft); color: var(--color-bad); text-decoration: line-through; text-decoration-color: #e8aaa5; border-radius: 3px; padding: 0 2px; }
+.diff-ins { background: var(--color-ok-soft); color: var(--color-ok); border-radius: 3px; padding: 0 2px; }
+
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }

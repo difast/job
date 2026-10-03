@@ -7,8 +7,8 @@ export default async function SettingsPage() {
   const user = await requirePageUser();
   return (
     <>
-      <PageHeader title="Настройки" subtitle="Профиль, целевая профессия и уровень" />
-      <SettingsClient name={user.name} email={user.email} professionId={user.professionId!} professionName={user.profession!.name} level={user.level as LevelKey} />
+      <PageHeader title="Настройки" subtitle="Профиль и целевая профессия" />
+      <SettingsClient name={user.name} email={user.email} professionName={user.profession!.name} level={user.level as LevelKey} />
     </>
   );
 }

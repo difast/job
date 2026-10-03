@@ -29,7 +29,7 @@ export const PUT = handler(async () => {
   const p = await requireProfession(user);
   const resume = await requireResume(user.id);
   const analysis = await analyzeResume(resume.text, p);
-  await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: p.id, level: p.level } });
+  await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: p.id, level: p.level, analyzedAt: new Date() } });
   return json({ id: resume.id, analysis });
 });
 

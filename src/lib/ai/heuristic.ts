@@ -12,6 +12,16 @@ import { LEVEL_SHORT } from '../types';
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 const trunc = (s: string, n = 90) => (s.length > n ? s.slice(0, n - 1).trim() + '…' : s);
 
+/** Текст раздела «Опыт работы» (до следующего раздела) — чтобы не считать годы учёбы стажем. */
+function experienceText(ls: string[], sections: Record<string, number>): string | null {
+  const start = sections.experience;
+  if (start === undefined) return null;
+  const ends = Object.entries(sections).filter(([k, i]) => k !== 'experience' && i > start).map(([, i]) => i);
+  const end = ends.length ? Math.min(...ends) : ls.length;
+  const t = ls.slice(start, end).join('\n');
+  return /(19|20)\d{2}/.test(t) ? t : null;
+}
+
 function resumeFacts(text: string) {
   const ls = lines(text);
   const sections = detectSections(ls);
@@ -20,7 +30,7 @@ function resumeFacts(text: string) {
   const achLines = bodyLines.filter((l) => METRIC_RE.test(l) || (ACHIEVE_VERB_RE.test(l) && /\d/.test(l)));
   const verbLines = bodyLines.filter((l) => ACHIEVE_VERB_RE.test(l));
   const n = norm(text);
-  return { ls, sections, bulletLines, bodyLines, achLines, verbLines, n, st: stemSet(text), years: estimateYears(text), wordCount: words(text) };
+  return { ls, sections, bulletLines, bodyLines, achLines, verbLines, n, st: stemSet(text), years: estimateYears(experienceText(ls, sections) ?? text), wordCount: words(text) };
 }
 
 export function analyzeResumeHeuristic(text: string, p: ProfessionContext): ResumeAnalysis {
@@ -126,8 +136,8 @@ export function analyzeResumeHeuristic(text: string, p: ProfessionContext): Resu
 
 // ───────── Вакансия ─────────
 
-const REQ_HEAD = /^(требования|мы ожидаем|ожидания|что нужно|что мы ждем|что мы ждём|вы нам подойдете|вы нам подойдёте|ты нам подходишь|нам важно|requirements|qualifications|must have|what we expect|от вас|от кандидата)\b/i;
-const OTHER_HEAD = /^(обязанности|задачи|чем предстоит заниматься|что предстоит делать|условия|мы предлагаем|что мы предлагаем|предлагаем|о компании|о нас|responsibilities|we offer|benefits|nice to have|будет плюсом|плюсом будет)\b/i;
+const REQ_HEAD = /^(требования|мы ожидаем|ожидания|что нужно|что мы ждем|что мы ждём|вы нам подойдете|вы нам подойдёте|ты нам подходишь|нам важно|requirements|qualifications|must have|what we expect|от вас|от кандидата)(?![\p{L}])/iu;
+const OTHER_HEAD = /^(обязанности|задачи|чем предстоит заниматься|что предстоит делать|условия|мы предлагаем|что мы предлагаем|предлагаем|о компании|о нас|responsibilities|we offer|benefits|nice to have|будет плюсом|плюсом будет)(?![\p{L}])/iu;
 
 export function extractVacancyTitle(text: string): string {
   const first = lines(text).map((l) => l.trim()).find((l) => l.length > 2);
@@ -314,25 +324,29 @@ export interface LetterInput {
 
 const pick = <T,>(arr: T[], v: number) => arr[v % arr.length];
 
+const DANGLING = /(?:^|\s)(?:за|в|на|и|с|со|по|к|от|до|из|для|при|над|под|а|но|или|—|-)$/i;
+
 export function letterHeuristic(style: LetterStyle, i: LetterInput): string {
   const f = resumeFacts(i.resumeText);
   const vst = stemSet(i.vacancyText);
   const skills = i.p.skills.filter((s) => coverage(s, norm(i.vacancyText), vst) >= 0.99 && coverage(s, f.n, f.st) >= 0.99).slice(0, 4);
   const generic = i.p.skills.filter((s) => coverage(s, f.n, f.st) >= 0.99).slice(0, 4);
   const useSkills = skills.length ? skills : generic;
-  const ach = f.achLines.map(stripBullet).filter((l) => l.length < 200).slice(0, 2);
+  // Цитируем только законченные строки резюме (строки, оборванные переносом PDF, пропускаем)
+  const ach = f.achLines.map(stripBullet).map((l) => l.replace(/[.;]$/, '')).filter((l) => l.length < 200 && !DANGLING.test(l)).slice(0, 2);
   const years = f.years && f.years > 0 ? `${f.years} ${f.years === 1 ? 'год' : f.years < 5 ? 'года' : 'лет'}` : null;
-  const to = i.company ? `Здравствуйте! Меня зовут ${i.userName}, и я хочу откликнуться на вакансию «${i.vacancyTitle}» в компании ${i.company}.` : `Здравствуйте! Меня зовут ${i.userName}, и я хочу откликнуться на вакансию «${i.vacancyTitle}».`;
+  const target = i.company ? `вакансию «${i.vacancyTitle}» в компании ${i.company}` : `вакансию «${i.vacancyTitle}»`;
+  const to = `Здравствуйте! Меня зовут ${i.userName}, и я хочу откликнуться на ${target}.`;
   const lvl = LEVEL_SHORT[i.p.level];
-  const skillsTxt = useSkills.length ? useSkills.join(', ') : '';
-  const bye = pick(['Буду рад(а) обсудить, чем могу быть полезен(на) вашей команде.', 'С удовольствием отвечу на вопросы и расскажу подробнее на встрече.', 'Готов(а) обсудить детали в удобное для вас время.'], i.variant);
-
+  const skillsTxt = useSkills.join(', ');
+  const bye = pick(['С удовольствием обсудим на встрече, чем мой опыт может быть полезен вашей команде.', 'Буду признателен за возможность рассказать о себе подробнее на собеседовании.', 'Готов к разговору в любое удобное для вас время — резюме прилагаю.'], i.variant);
   const closing = pick(['С уважением,', 'Всего доброго,', 'Благодарю за внимание,', 'С наилучшими пожеланиями,'], i.variant);
-  const lead = pick(['', 'Коротко о главном. '], i.variant + 1);
+  const profile = `Я работаю по направлению «${i.p.name}», уровень — ${lvl}${years ? `, опыт — около ${years}` : ''}.`;
+
   if (style === 'short') {
     return [
       to,
-      `Я ${i.p.name.toLowerCase()} уровня ${lvl}${years ? `, мой опыт — около ${years}` : ''}.${skillsTxt ? ` В работе использую: ${skillsTxt} — это совпадает с требованиями вакансии.` : ''}${ach[0] ? ` Например: ${ach[0].replace(/[.;]$/, '')}.` : ''}`,
+      `${profile}${skillsTxt ? ` В работе использую ${skillsTxt} — это совпадает с требованиями вакансии.` : ''}${ach[0] ? ` Например: ${ach[0]}.` : ''}`,
       bye,
       `${closing}\n${i.userName}`,
     ].join('\n\n');
@@ -341,19 +355,19 @@ export function letterHeuristic(style: LetterStyle, i: LetterInput): string {
     return [
       to,
       pick([
-        `Мне близка работа в роли «${i.p.name}»: ${i.p.description.charAt(0).toLowerCase()}${i.p.description.slice(1)} Именно такие задачи вдохновляют меня в профессии.`,
-        `Я выбрал(а) профессию «${i.p.name}», потому что мне нравится видеть реальный результат своей работы. Ваша вакансия — как раз такая возможность.`,
+        `Мне близка профессия «${i.p.name}»: ${i.p.description.charAt(0).toLowerCase()}${i.p.description.slice(1)} Именно такие задачи вдохновляют меня.`,
+        `Мне нравится видеть реальный результат своей работы, поэтому профессия «${i.p.name}» — осознанный выбор. Ваша вакансия — как раз такая возможность.`,
       ], i.variant),
-      `${years ? `За ${years} работы ` : 'В своей работе '}я научился(ась) ${skillsTxt ? `уверенно использовать ${skillsTxt}` : 'доводить задачи до результата'}.${ach.length ? ` Моя гордость — ${ach.map((a) => a.replace(/[.;]$/, '')).join('; ')}.` : ''}`,
-      `Мне хочется приносить пользу команде не только навыками, но и подходом: договариваться, учиться и брать ответственность за результат. ${bye}`,
+      `${years ? `Около ${years} в профессии: ` : 'В работе '}${skillsTxt ? `я регулярно использую ${skillsTxt}` : 'я привык доводить задачи до результата'}.${ach.length ? ` Из того, чем горжусь: ${ach.join('; ')}.` : ''}`,
+      `Для меня важно приносить пользу команде не только навыками, но и подходом: договариваться, учиться и отвечать за результат. ${bye}`,
       `${pick(['С теплом,', 'С уважением и интересом к вашей команде,'], i.variant)}\n${i.userName}`,
     ].join('\n\n');
   }
   return [
     to,
-    `${lead}Мой профиль — ${i.p.name.toLowerCase()} (${lvl})${years ? ` с опытом около ${years}` : ''}. ${i.p.levelSummary.replace(/^[^:]+:\s*/, '').replace(/^./, (c) => c.toUpperCase())}`,
-    `${skillsTxt ? `Мой опыт соответствует ключевым требованиям вашей вакансии: ${skillsTxt}.` : 'Моё резюме прилагаю — в нём подробно описан релевантный опыт.'}${ach.length ? ` Среди результатов:\n${ach.map((a) => `— ${a.replace(/[.;]$/, '')}`).join('\n')}` : ''}`,
-    `Мне интересна позиция «${i.vacancyTitle}»${i.company ? ` в ${i.company}` : ''}, так как она позволяет применить мой опыт в задачах, где важны ответственность и результат. ${bye}`,
+    `${profile} Мой опыт связан с задачами, которые описаны в вашей вакансии.`,
+    `${skillsTxt ? `Мой опыт соответствует ключевым требованиям: ${skillsTxt}.` : 'Резюме прилагаю — в нём подробно описан релевантный опыт.'}${ach.length ? ` Среди результатов:\n${ach.map((a) => `— ${a}`).join('\n')}` : ''}`,
+    `Мне интересна позиция «${i.vacancyTitle}»${i.company ? ` в ${i.company}` : ''}: она позволяет применить мой опыт в задачах, где важны ответственность и результат. ${bye}`,
     `${closing}\n${i.userName}`,
   ].join('\n\n');
 }
@@ -383,7 +397,7 @@ export function feedbackHeuristic(answer: string, keyPoints: string[], category:
   if (wc > 220) tips.push('Ответ длинноват — сократите до главного: 1–2 минуты на устный ответ.');
   if (!hasExample) tips.push('Добавьте конкретный пример из вашего опыта («В проекте X я …»).');
   if (!hasNumbers) tips.push('Подкрепите ответ цифрами: масштаб, сроки, результат в процентах или деньгах.');
-  if (missed.length) tips.push(`Не хватает: ${missed.slice(0, 2).join('; ')}.`);
+  if (missed.length && wc >= 40 && hasExample && hasNumbers) tips.push('Раскройте недостающие пункты — по одному предложению на каждый.');
   if (!tips.length) tips.push('Хороший, структурный ответ. Потренируйтесь произносить его вслух за 1–2 минуты.');
   return { score, covered, missed, tips: tips.slice(0, 4), engine: 'heuristic' };
 }

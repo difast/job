@@ -3,7 +3,11 @@
 MVP SaaS-платформы подготовки к поиску работы. Центральная сущность — **профессия пользователя**: выбрав профессию и уровень, пользователь получает анализ резюме, адаптацию под вакансию, сопроводительное письмо и тренажёр собеседования, настроенные под эту профессию.
 
 ## Стек
-Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Prisma 6 + SQLite · собственная cookie-сессия (bcrypt, токен хранится хэшем) · pdf-parse / mammoth (PDF/DOCX → текст) · pdfkit (экспорт PDF) · Anthropic SDK (опционально).
+Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · шрифт Inter (локально, @fontsource) · Prisma 6 + SQLite · собственная cookie-сессия (bcrypt, токен хранится хэшем) · pdf-parse / mammoth (PDF/DOCX → текст) · pdfkit (экспорт PDF) · Anthropic SDK (опционально).
+
+## Что внутри
+* **Лендинг** (`/`) — hero с превью продукта, «Как это работает», возможности, профессии, финальный CTA, футер; `/terms` и `/privacy` — страницы-заглушки.
+* **Личный кабинет** — единая дизайн-система (`src/app/globals.css` — токены, `src/components/ui.tsx` — кнопки, карточки, оценки, состояния, `Icon.tsx` — иконки), боковая панель на desktop и верхняя + нижняя навигация на mobile, диалог «Ваша цель» (смена профессии пересчитывает оценку резюме и вопросы собеседования), skeleton/empty/error-состояния.
 
 ## Запуск
 ```bash
@@ -41,9 +45,12 @@ src/app/(app)         dashboard, резюме,          src/lib          auth, d
 ```bash
 npm test                                         # юнит-тесты логики и справочников
 npm run build && npx next start -p 3100 &        # затем:
-BASE_URL=http://localhost:3100 npm run e2e       # сквозной сценарий через HTTP (~75 проверок)
+BASE_URL=http://localhost:3100 npm run e2e       # сквозной сценарий через HTTP (~110 проверок, включая лендинг)
 BASE_URL=http://localhost:3100 npm run ui-check  # сценарий в реальном Chromium + скриншоты, mobile/tablet
 ```
 
 ## Вне MVP (по ТЗ)
 LinkedIn и трекер откликов не реализованы.
+
+## Деплой (Timeweb Cloud Apps)
+Фреймворк Next.js, команда сборки `npm run build`, директория сборки `.next`, команда запуска `npm run start:prod`, проверка состояния `GET /api/health`. SSR должен быть включён. Поле системных зависимостей — пустое. Без `DATABASE_URL` используется `file:./prod.db` (SQLite стирается при новом деплое — для продакшена подключите PostgreSQL или постоянный диск).
