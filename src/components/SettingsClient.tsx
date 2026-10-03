@@ -3,10 +3,11 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ChangeGoalButton } from './GoalContext';
 import Icon from './Icon';
-import { Alert, Button, Card, CardTitle, Spinner, initials } from './ui';
+import Link from 'next/link';
+import { Alert, Button, Card, CardTitle, Spinner, buttonClass, initials } from './ui';
 import { LEVEL_LABELS, type LevelKey } from '@/lib/types';
 
-export default function SettingsClient({ name, email, professionName, level }: { name: string; email: string; professionName: string; level: LevelKey }) {
+export default function SettingsClient({ name, email, professionName, level, tierLabel }: { name: string; email: string; professionName: string; level: LevelKey; tierLabel: string }) {
   const router = useRouter();
   const [n, setN] = useState(name);
   const [busy, setBusy] = useState(false);
@@ -46,6 +47,13 @@ export default function SettingsClient({ name, email, professionName, level }: {
           <ChangeGoalButton size="md" />
         </div>
         <p className="mt-3 text-[13px] text-muted">При смене цели резюме оценивается заново, а вопросы собеседования подбираются под новую профессию и уровень.</p>
+      </Card>
+      <Card>
+        <CardTitle icon="shield">Тариф</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div><div className="font-medium" data-testid="settings-tier">{tierLabel}</div><div className="text-sm text-ink-2">Оплата и история платежей</div></div>
+          <Link href="/billing" className={buttonClass({ variant: 'secondary' })}>Тариф и оплата</Link>
+        </div>
       </Card>
       <Card>
         <CardTitle icon="logout">Сеанс</CardTitle>

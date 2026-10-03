@@ -25,7 +25,7 @@ function Avatar({ name, size = 32 }: { name: string; size?: number }) {
 }
 
 /* ───────── Desktop: боковая панель ───────── */
-function Sidebar({ user, professionName, level }: Props) {
+function Sidebar({ user, professionName, level, tier }: Props) {
   const path = usePathname();
   const { openGoal } = useGoal();
   const logout = useLogout();
@@ -49,6 +49,10 @@ function Sidebar({ user, professionName, level }: Props) {
           <div className="mt-1.5 flex items-center gap-2"><Icon name="target" size={16} className="shrink-0 text-accent-600" /><span className="truncate text-sm font-medium" data-testid="target-profession">{professionName}</span></div>
           <div className="mt-1 pl-6 text-[13px] text-ink-2" data-testid="target-level">{LEVEL_SHORT[level]}</div>
         </button>
+        <Link href="/billing" data-testid="plan-link" className={cx('flex h-9 items-center justify-between rounded-lg px-3 text-[13px] transition-colors hover:bg-subtle', path.startsWith('/billing') ? 'bg-subtle' : '')}>
+          <span className="text-ink-2">Тариф: <b className="font-medium text-ink">{tier === 'pro' ? 'Pro' : 'Бесплатный'}</b></span>
+          {tier === 'free' ? <span className="font-medium text-accent-600">Улучшить</span> : <Icon name="chevron-right" size={14} className="text-muted" />}
+        </Link>
         <div className="flex items-center gap-2.5 rounded-lg p-1.5">
           <Avatar name={user.name} />
           <div className="min-w-0 flex-1 leading-tight"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
@@ -89,7 +93,8 @@ function MobileBars({ user, professionName, level }: Props) {
           {menu && (
             <div className="fade-in absolute right-0 top-11 w-60 rounded-xl border border-line bg-white p-1.5 shadow-pop">
               <div className="border-b border-line px-3 py-2.5"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
-              <Link href="/settings" className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="sliders" size={16} className="text-muted" />Настройки</Link>
+              <Link href="/billing" className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="shield" size={16} className="text-muted" />Тариф и оплата</Link>
+              <Link href="/settings" className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="sliders" size={16} className="text-muted" />Настройки</Link>
               <button onClick={logout} className="flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="logout" size={16} className="text-muted" />Выйти</button>
             </div>
           )}
@@ -113,7 +118,7 @@ function MobileBars({ user, professionName, level }: Props) {
   );
 }
 
-interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey }
+interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey; tier: 'free' | 'pro' }
 
 export default function AppShell({ children, ...p }: Props & { children: React.ReactNode }) {
   const path = usePathname();

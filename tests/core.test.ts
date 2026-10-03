@@ -101,3 +101,15 @@ test('стаж считается по разделу «Опыт», годы у�
   const a = analyzeVacancyHeuristic('Требования:\n- Опыт от 10 лет\n- SQL', resume, ctx);
   assert.equal(a.requirements[0].status, 'missing'); // ~7 лет по опыту, а не 11 с учётом образования
 });
+
+test('биллинг: продление Pro считается от конца текущего периода, конец месяца корректен', async () => {
+  const { extendUntil, currentTier, PLANS } = await import('../src/lib/billing/plans');
+  const now = new Date('2026-01-31T10:00:00Z');
+  assert.equal(extendUntil(null, 1, now).toISOString().slice(0, 10), '2026-02-28');
+  const active = new Date('2026-03-15T00:00:00Z');
+  assert.equal(extendUntil(active, 3, now).toISOString().slice(0, 10), '2026-06-15');
+  assert.equal(extendUntil(new Date('2025-12-01'), 1, now).toISOString().slice(0, 10), '2026-02-28'); // истёкший — от сегодня
+  assert.equal(currentTier({ plan: 'pro', planUntil: new Date('2025-01-01') }, now).tier, 'free');
+  assert.equal(currentTier({ plan: 'pro', planUntil: active }, now).tier, 'pro');
+  assert.ok(PLANS.every((p) => Number.isInteger(p.price) && p.price >= 0));
+});

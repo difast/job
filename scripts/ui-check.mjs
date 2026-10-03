@@ -111,12 +111,26 @@ ok(true, 'тренажёр: следующий вопрос');
 await page.goto(BASE + '/settings');
 await shot('14-settings');
 
+// Оплата (заглушка)
+await page.click('[data-testid=plan-link]');
+await page.waitForURL('**/billing');
+await shot('15-billing');
+await page.locator('[data-testid=plan-pro-month] button').click();
+await page.waitForURL('**/pay/stub/**');
+await shot('16-pay-stub', false);
+await page.getByRole('button', { name: /Оплатить/ }).click();
+await page.waitForURL('**/billing?payment=**');
+await page.waitForSelector('text=Оплата прошла успешно');
+ok((await page.textContent('[data-testid=current-tier]')) === 'Pro', 'оплата: тариф Pro активирован');
+ok((await page.textContent('[data-testid=plan-link]')).includes('Pro'), 'меню: тариф Pro');
+await shot('17-billing-paid');
+
 // мобильная версия
 const m = await browser.newContext({ viewport: { width: 390, height: 800 }, storageState: await ctx.storageState() });
 const mp = await m.newPage();
 const noOverflow = async (p, name) => ok(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), `mobile: нет горизонтального скролла — ${name}`);
 await mp.goto(BASE + '/'); await mp.waitForSelector('h1'); await mp.screenshot({ path: `${OUT}/20-mobile-landing.png`, fullPage: true }); await noOverflow(mp, 'лендинг');
-for (const [path, name] of [['/dashboard', 'dashboard'], ['/resume', 'резюме'], ['/vacancies', 'вакансии'], ['/cover-letter', 'письмо'], ['/interview', 'собеседование'], ['/settings', 'настройки']]) {
+for (const [path, name] of [['/dashboard', 'dashboard'], ['/resume', 'резюме'], ['/vacancies', 'вакансии'], ['/cover-letter', 'письмо'], ['/interview', 'собеседование'], ['/settings', 'настройки'], ['/billing', 'тарифы']]) {
   await mp.goto(BASE + path); await mp.waitForSelector('main h1'); await noOverflow(mp, name);
   if (path === '/dashboard') await mp.waitForTimeout(1000); await mp.screenshot({ path: `${OUT}/21-mobile-dashboard.png`, fullPage: false });
   if (path === '/resume') await mp.waitForTimeout(1000), await mp.screenshot({ path: `${OUT}/22-mobile-resume.png`, fullPage: false });

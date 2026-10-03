@@ -148,6 +148,30 @@ r = await post('/api/interview/answer', { questionId: q.id, answer: 'не зна
 const weak = (await jsonOf(r)).feedback;
 ok(weak.score < 40 && weak.missed.length > 0 && weak.tips.length > 0, `тренажёр: слабый ответ получает низкую оценку и советы (${weak.score})`);
 
+// Оплата (тестовый режим — заглушка ЮKassa)
+page = await (await req('/billing')).text();
+ok(['Тариф и оплата', 'Бесплатный', 'Pro на 3 месяца', 'Тестовый режим', 'Оформить'].every((t) => page.includes(t)), 'страница тарифов: текущий тариф, тарифы, тестовый режим');
+ok((await post('/api/billing/checkout', { planId: 'free' })).status === 400, 'бесплатный тариф нельзя «оплатить»');
+ok((await post('/api/billing/checkout', { planId: 'nope' })).status === 400, 'несуществующий тариф отклонён');
+d = await jsonOf(await post('/api/billing/checkout', { planId: 'pro-month' }));
+ok(d.paymentId && d.confirmationUrl === `/pay/stub/${d.paymentId}`, 'создание платежа → ссылка на страницу оплаты');
+const payId = d.paymentId;
+page = await (await req(d.confirmationUrl)).text();
+ok(page.includes('Тестовая оплата') && page.includes('490'), 'страница тестовой оплаты показывает сумму');
+d = await jsonOf(await post(`/api/billing/stub/${payId}`, { action: 'succeed' }));
+ok(d.redirect === `/billing?payment=${payId}`, 'тестовая оплата подтверждена → возврат на тарифы');
+ok((await post(`/api/billing/stub/${payId}`, { action: 'succeed' })).status === 409, 'повторное подтверждение платежа отклонено (Pro не продлевается дважды)');
+page = await (await req(`/billing?payment=${payId}`)).text();
+ok(page.includes('Оплата прошла успешно') && page.includes('Продлить') && page.includes('Оплачен'), 'после оплаты: Pro активен, платёж в истории');
+const cancelId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pro-quarter' }))).paymentId;
+await post(`/api/billing/stub/${cancelId}`, { action: 'cancel' });
+page = await (await req(`/billing?payment=${cancelId}`)).text();
+ok(page.includes('Оплата не завершена') && page.includes('Отменён'), 'отмена оплаты: деньги не списаны, статус «Отменён»');
+d = await jsonOf(await post('/api/billing/webhook', { event: 'payment.succeeded', object: { id: 'stub_x' } }));
+ok(d.ignored === 'test-mode', 'webhook в тестовом режиме игнорирует уведомления');
+ok((await post('/api/billing/webhook', {})).status === 400, 'webhook: некорректное тело → 400');
+const unpaidId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pro-month' }))).paymentId;
+
 // Смена профессии и уровня
 ok((await post('/api/profile', { professionId: 'software-developer', level: 'junior' }, 'PATCH')).status === 200, 'смена профессии/уровня');
 d = await jsonOf(await req('/api/interview/questions?type=professional'));
@@ -169,6 +193,10 @@ await post('/api/profile', { professionId: 'accountant', level: 'senior' }, 'PAT
 { const r404 = await req(`/vacancies/${vid}`); const body = await r404.text(); ok(r404.status === 404 || (body.includes('Страница не найдена') && !body.includes('Продуктовый менеджер')), 'чужая вакансия недоступна (страница «не найдена», данные не раскрыты)'); }
 ok((await req(`/api/adaptations/${aid}/pdf`)).status === 404, 'чужая адаптация недоступна');
 ok((await post('/api/cover-letters', { vacancyId: vid, style: 'short' })).status === 404, 'нельзя создать письмо к чужой вакансии');
+ok((await post(`/api/billing/stub/${unpaidId}`, { action: 'succeed' })).status === 404, 'нельзя подтвердить чужой платёж');
+ok((await req(`/pay/stub/${unpaidId}`)).status === 404 || !(await (await req(`/pay/stub/${unpaidId}`)).text()).includes('Оплатить'), 'чужая страница оплаты недоступна');
+page = await (await req('/billing')).text();
+ok(page.includes('Бесплатный') && !page.includes('Оплата прошла успешно'), 'тариф другого пользователя не изменился');
 cookie = saved;
 r = await post('/api/auth/login', { email, password: 'wrong-pass' });
 ok(r.status === 401, 'неверный пароль отклонён');

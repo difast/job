@@ -9,6 +9,11 @@ Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · шриф�
 * **Лендинг** (`/`) — hero с превью продукта, «Как это работает», возможности, профессии, финальный CTA, футер; `/terms` и `/privacy` — страницы-заглушки.
 * **Личный кабинет** — единая дизайн-система (`src/app/globals.css` — токены, `src/components/ui.tsx` — кнопки, карточки, оценки, состояния, `Icon.tsx` — иконки), боковая панель на desktop и верхняя + нижняя навигация на mobile, диалог «Ваша цель» (смена профессии пересчитывает оценку резюме и вопросы собеседования), skeleton/empty/error-состояния.
 
+## Оплата (ЮKassa)
+* Тарифы и цены — `src/lib/billing/plans.ts` (сейчас значения-заглушки; ограничения тарифов к функциям не применяются).
+* Провайдер — `src/lib/billing/provider.ts`: по умолчанию тестовая заглушка (`/pay/stub/[id]`), ЮKassa включается `PAYMENT_PROVIDER=yookassa` + `YOOKASSA_SHOP_ID` + `YOOKASSA_SECRET_KEY`.
+* Поток: `POST /api/billing/checkout` → страница оплаты → возврат на `/billing?payment=…` (статус сверяется с провайдером) и уведомление `POST /api/billing/webhook` (статус всегда перепроверяется запросом к API ЮKassa). Продление Pro идемпотентно.
+
 ## Запуск
 ```bash
 npm install

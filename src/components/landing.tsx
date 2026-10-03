@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import Icon, { type IconName } from './Icon';
+import { PlanCard } from './billing';
+import { PLANS } from '@/lib/billing/plans';
 import { Logo, LinkButton, Meter, ScoreRing, cx } from './ui';
 
 const wrap = 'mx-auto w-full max-w-6xl px-5 sm:px-8';
@@ -14,6 +16,7 @@ export function LandingHeader({ signedIn }: { signedIn: boolean }) {
           <a href="#features" className="transition-colors hover:text-ink">Возможности</a>
           <a href="#how" className="transition-colors hover:text-ink">Как это работает</a>
           <a href="#professions" className="transition-colors hover:text-ink">Профессии</a>
+          <a href="#pricing" className="transition-colors hover:text-ink">Тарифы</a>
         </nav>
         <div className="flex items-center gap-2">
           {signedIn ? (
@@ -193,10 +196,28 @@ export function Professions() {
   );
 }
 
+/* ───────── Тарифы ───────── */
+export function Pricing({ signedIn }: { signedIn: boolean }) {
+  return (
+    <section id="pricing" className="scroll-mt-20 border-t border-line bg-white">
+      <div className={cx(wrap, 'py-16 sm:py-20')}>
+        <h2 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Тарифы</h2>
+        <p className="mt-3 max-w-xl text-[15px] text-ink-2">Начните бесплатно. Pro — когда активно ищете работу.</p>
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          {PLANS.map((p) => (
+            <PlanCard key={p.id} plan={p} action={<LinkButton href={signedIn ? (p.price ? '/billing' : '/dashboard') : '/register'} size="lg" variant={p.highlight ? 'primary' : 'secondary'} className="w-full">{p.price ? 'Выбрать' : 'Начать бесплатно'}</LinkButton>} />
+          ))}
+        </div>
+        <p className="mt-5 flex items-center gap-1.5 text-xs text-muted"><Icon name="lock" size={13} />Оплата через ЮKassa: банковские карты, СБП и другие способы.</p>
+      </div>
+    </section>
+  );
+}
+
 /* ───────── Финальный призыв ───────── */
 export function FinalCta({ signedIn }: { signedIn: boolean }) {
   return (
-    <section className={cx(wrap, 'pb-16 sm:pb-24')}>
+    <section className={cx(wrap, 'py-16 sm:py-24')}>
       <div className="rounded-2xl bg-ink px-6 py-12 text-center sm:px-12 sm:py-16">
         <h2 className="mx-auto max-w-xl text-[26px] font-semibold leading-tight tracking-tight text-white sm:text-[32px]">Готовы подготовиться к поиску работы?</h2>
         <p className="mx-auto mt-3 max-w-md text-[15px] text-[#aab0c5]">Начните с анализа своего резюме.</p>
@@ -212,7 +233,7 @@ export function FinalCta({ signedIn }: { signedIn: boolean }) {
 
 /* ───────── Футер ───────── */
 export function LandingFooter() {
-  const links: [string, string][] = [['Возможности', '/#features'], ['Войти', '/login'], ['Регистрация', '/register'], ['Условия использования', '/terms'], ['Политика конфиденциальности', '/privacy']];
+  const links: [string, string][] = [['Возможности', '/#features'], ['Тарифы', '/#pricing'], ['Войти', '/login'], ['Регистрация', '/register'], ['Условия использования', '/terms'], ['Политика конфиденциальности', '/privacy']];
   return (
     <footer className="border-t border-line bg-white">
       <div className={cx(wrap, 'flex flex-col gap-6 py-8 md:flex-row md:items-center md:justify-between')}>

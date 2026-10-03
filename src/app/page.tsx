@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getUser } from '@/lib/auth';
-import { FinalCta, Features, Hero, HowItWorks, LandingFooter, LandingHeader, Professions } from '@/components/landing';
+import { FinalCta, Features, Hero, HowItWorks, LandingFooter, LandingHeader, Pricing, Professions } from '@/components/landing';
 
 export const metadata: Metadata = {
   title: 'Карьерный навигатор — резюме, вакансии и собеседования под вашу профессию',
@@ -17,6 +17,7 @@ export default async function Landing() {
         <HowItWorks />
         <Features />
         <Professions />
+        <Pricing signedIn={signedIn} />
         <FinalCta signedIn={signedIn} />
       </main>
       <LandingFooter />

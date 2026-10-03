@@ -78,12 +78,15 @@ model User {
   professionId String?
   profession   Profession? @relation(fields: [professionId], references: [id])
   level        String?
+  plan         String      @default("free") // free | pro
+  planUntil    DateTime? // до какого момента оплачен pro
   createdAt    DateTime    @default(now())
 
   sessions  Session[]
   resumes   Resume[]
   vacancies Vacancy[]
   attempts  PracticeAttempt[]
+  payments  Payment[]
 }
 
 model Session {
@@ -165,4 +168,23 @@ model PracticeAttempt {
   createdAt  DateTime          @default(now())
 
   @@index([userId, questionId])
+}
+
+// ───────── Оплата (ЮKassa; пока работает тестовый провайдер-заглушка) ─────────
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // stub | yookassa
+  providerPaymentId String?  @unique
+  planId            String // id тарифа из src/lib/billing/plans.ts
+  amount            Int // в копейках
+  currency          String   @default("RUB")
+  status            String // pending | succeeded | canceled
+  confirmationUrl   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
