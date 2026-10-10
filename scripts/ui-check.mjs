@@ -29,6 +29,10 @@ await page.fill('input[name=name]', 'Анна Иванова');
 await page.fill('input[name=email]', `ui_${Date.now()}@example.com`);
 await page.fill('input[name=password]', 'password123');
 await page.click('button[type=submit]');
+await page.waitForTimeout(400);
+ok(page.url().endsWith('/register'), 'регистрация без отметки согласия не отправляется');
+await page.check('[data-testid=consent]');
+await page.click('button[type=submit]');
 await page.waitForURL('**/onboarding');
 await page.fill('input[aria-label="Поиск профессии"]', 'продакт');
 await page.click('button:has-text("Продакт-менеджер")');
@@ -143,13 +147,14 @@ await shot('F2-settings');
 section('Адаптивность (desktop / tablet / mobile)');
 const state = await ctx.storageState();
 const vacPath = new URL(vacancyUrl).pathname;
-const pages = [['/dashboard', 'главная'], ['/resume', 'резюме'], ['/vacancies', 'вакансии'], [vacPath, 'анализ вакансии (длинный текст)'], [vacPath + '/adapt', 'адаптация'], ['/cover-letter', 'письмо'], ['/interview', 'собеседование'], ['/settings', 'настройки'], ['/billing', 'тарифы']];
+const pages = [['/terms', 'оферта'], ['/privacy', 'политика'], ['/consent', 'согласие'], ['/dashboard', 'главная'], ['/resume', 'резюме'], ['/vacancies', 'вакансии'], [vacPath, 'анализ вакансии (длинный текст)'], [vacPath + '/adapt', 'адаптация'], ['/cover-letter', 'письмо'], ['/interview', 'собеседование'], ['/settings', 'настройки'], ['/billing', 'тарифы']];
 for (const [w, h, label] of [[1440, 900, 'desktop'], [820, 1180, 'tablet'], [390, 844, 'mobile']]) {
   const c = await browser.newContext({ viewport: { width: w, height: h }, storageState: state });
   const p = await c.newPage(); watch(p);
   const bad = [];
   for (const [path, name] of pages) {
     await p.goto(BASE + path); await p.waitForSelector('main h1');
+    if (['/terms', '/consent'].includes(path) && label !== 'tablet') await shot(`L-${label}-${path.slice(1)}`, false, p);
     if (await overflow(p)) bad.push(name);
     if (label !== 'desktop' && ['/dashboard', '/resume', '/interview', vacPath].includes(path)) await shot(`M-${label}-${name.split(' ')[0]}`, label === 'mobile', p);
   }

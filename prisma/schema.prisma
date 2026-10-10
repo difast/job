@@ -80,6 +80,8 @@ model User {
   level        String?
   plan         String      @default("free") // free | pro
   planUntil    DateTime? // до какого момента оплачен pro
+  pdConsentAt  DateTime? // когда дано согласие на обработку персональных данных (отдельная отметка при регистрации)
+  pdConsentVer String? // редакция документа согласия
   createdAt    DateTime    @default(now())
 
   sessions  Session[]

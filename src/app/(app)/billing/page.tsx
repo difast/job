@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requirePageUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { PLANS, currentTier, formatRub, getPlan } from '@/lib/billing/plans';
@@ -55,7 +56,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 : <CheckoutButton planId={p.id} variant={p.highlight ? 'primary' : 'secondary'} label={tier === 'pro' ? 'Продлить' : 'Оформить'} />} />
           ))}
         </div>
-        <p className="mt-4 flex items-center gap-1.5 text-xs text-muted"><Icon name="lock" size={13} />Банковские карты, СБП и другие способы оплаты — через ЮKassa. Данные карты не передаются и не хранятся у нас.</p>
+        <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted"><Icon name="lock" size={13} className="mt-0.5 shrink-0" /><span>Банковские карты, СБП и другие способы оплаты — через ЮKassa. Данные карты не передаются и не хранятся у нас. Оплачивая тариф, вы принимаете условия <Link href="/terms#tariffs" className="underline underline-offset-2 hover:text-ink">Пользовательского соглашения</Link>, включая порядок оплаты, продления и возврата.</span></p>
       </section>
 
       {payments.length > 0 && (

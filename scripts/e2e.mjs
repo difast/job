@@ -18,9 +18,25 @@ const jsonOf = (r) => r.json();
 let land = await req('/');
 let html = await land.text();
 ok(land.status === 200, 'лендинг / открывается без авторизации');
-for (const t of ['Подготовьте резюме.', 'Подготовьтесь к\u00a0собеседованию.', 'Получите работу.', 'Попробовать бесплатно', 'Как это работает', 'Выберите профессию', 'Загрузите резюме', 'Подготовьтесь к вакансии', 'Анализ резюме', 'Резюме под вакансию', 'Сопроводительное письмо', 'Подготовка к собеседованию', 'не только IT', 'Выбрать свою профессию', 'Готовы подготовиться к поиску работы?', 'Условия использования', 'Политика конфиденциальности']) ok(html.includes(t), `лендинг: «${t}»`);
+for (const t of ['Подготовьте резюме.', 'Подготовьтесь к\u00a0собеседованию.', 'Получите работу.', 'Попробовать бесплатно', 'Как это работает', 'Выберите профессию', 'Загрузите резюме', 'Подготовьтесь к вакансии', 'Анализ резюме', 'Резюме под вакансию', 'Сопроводительное письмо', 'Подготовка к собеседованию', 'не только IT', 'Выбрать свою профессию', 'Готовы подготовиться к поиску работы?', 'Пользовательское соглашение', 'Политика конфиденциальности', 'Согласие на обработку данных']) ok(html.includes(t), `лендинг: «${t}»`);
 ok(html.includes('href="/register"') && html.includes('href="/login"'), 'лендинг: кнопки ведут на регистрацию и вход');
-for (const p of ['/terms', '/privacy', '/login', '/register']) ok((await req(p)).status === 200, `публичная страница ${p}`);
+for (const p of ['/terms', '/privacy', '/consent', '/login', '/register']) ok((await req(p)).status === 200, `публичная страница ${p}`);
+const REQ = ['ООО «Интегро»', '1257700559269', '9734021152', '773401001', '123592, город Москва, ул. Маршала Катукова, д. 22 к. 1', 'ежедневно с 10:00 до 20:00 по московскому времени'];
+const docChecks = {
+  '/terms': ['Пользовательское соглашение (публичная оферта)', 'Тарифы', 'Порядок оплаты', 'Автопродление', 'ЮKassa', '490', '1 190', 'О защите прав потребителей'],
+  '/privacy': ['Политика конфиденциальности', '152-ФЗ', 'Файлы cookie', 'Трансграничная передача', 'Права пользователя', '10 (десяти) рабочих дней'],
+  '/consent': ['Согласие на обработку персональных данных', 'статьёй 9', 'отозвать согласие', 'сбор, запись, систематизация'],
+};
+for (const [p, must] of Object.entries(docChecks)) {
+  const t = (await (await req(p)).text()).replace(/[\u00a0\u202f]/g, ' ');
+  const miss = [...REQ, ...must].filter((x) => !t.includes(x));
+  ok(miss.length === 0, `документ ${p}: реквизиты и обязательные разделы${miss.length ? ' — нет: ' + miss.join(', ') : ''}`);
+  ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(t.replace(/you@example\.com/g, '')), `документ ${p}: адрес почты не указан (будет добавлен позже)`);
+}
+html = await (await req('/')).text();
+ok(html.includes('ИНН 9734021152') && html.includes('href="/consent"') && html.includes('href="/terms"') && html.includes('href="/privacy"'), 'футер: реквизиты и ссылки на все три документа');
+html = await (await req('/register')).text();
+ok(html.includes('name="consent"') && html.includes('href="/consent"') && html.includes('Пользовательское соглашение'), 'регистрация: отдельная галочка согласия и ссылки на документы');
 ok((await req('/health-not-exists')).status === 404, 'несуществующая страница → 404');
 ok((await (await req('/api/health')).json()).status === 'ok', '/api/health');
 
@@ -28,10 +44,12 @@ const email = `e2e_${Date.now()}@example.com`;
 
 // Авторизация
 ok((await req('/dashboard')).status === 307, 'неавторизованный доступ к /dashboard → редирект на логин');
-ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: '123' })).status === 400, 'короткий пароль отклонён');
-let r = await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123' });
+ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: '123', consent: true })).status === 400, 'короткий пароль отклонён');
+ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123' })).status === 400, 'регистрация без согласия на обработку ПД отклонена');
+ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123', consent: false })).status === 400, 'согласие должно быть явным (false отклонено)');
+let r = await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123', consent: true });
 ok(r.status === 200, 'регистрация');
-ok((await post('/api/auth/register', { name: 'X', email, password: 'password123' })).status === 409, 'дубликат e-mail отклонён');
+ok((await post('/api/auth/register', { name: 'X', email, password: 'password123', consent: true })).status === 409, 'дубликат e-mail отклонён');
 ok((await req('/onboarding')).status === 200, 'после регистрации открыт onboarding');
 ok((await req('/dashboard')).status === 307, 'без профессии dashboard → onboarding');
 
@@ -200,7 +218,7 @@ const saved = cookie;
 await post('/api/auth/logout', {});
 cookie = '';
 ok((await req(`/api/adaptations/${aid}/pdf`)).status === 401, 'без сессии API → 401');
-await post('/api/auth/register', { name: 'Другой', email: 'other_' + email, password: 'password123' });
+await post('/api/auth/register', { name: 'Другой', email: 'other_' + email, password: 'password123', consent: true });
 await post('/api/profile', { professionId: 'accountant', level: 'senior' }, 'PATCH');
 { const r404 = await req(`/vacancies/${vid}`); const body = await r404.text(); ok(r404.status === 404 || (body.includes('Страница не найдена') && !body.includes('Продуктовый менеджер')), 'чужая вакансия недоступна (страница «не найдена», данные не раскрыты)'); }
 ok((await req(`/api/adaptations/${aid}/pdf`)).status === 404, 'чужая адаптация недоступна');

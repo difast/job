@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Быстрая проверка наличия cookie; полная валидация сессии — на сервере (getUser).
-const PUBLIC = ['/', '/login', '/register', '/terms', '/privacy'];
+const PUBLIC = ['/', '/login', '/register', '/terms', '/privacy', '/consent'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

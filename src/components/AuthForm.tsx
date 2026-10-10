@@ -46,14 +46,20 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             <label className="block text-sm font-medium">Пароль
               <input name="password" type="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={`${input} mt-1.5`} placeholder={isReg ? 'Минимум 8 символов' : 'Ваш пароль'} />
             </label>
+            {isReg && (
+              <label className="flex items-start gap-3 rounded-lg border border-line bg-white p-3.5 text-[13px] leading-relaxed text-ink-2">
+                <input type="checkbox" name="consent" required className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent-600)]" data-testid="consent" />
+                <span>Даю <Link href="/consent" target="_blank" className="font-medium text-ink underline underline-offset-2 hover:text-accent-700">согласие на обработку персональных данных</Link></span>
+              </label>
+            )}
             {error && <Alert>{error}</Alert>}
             <Button type="submit" size="lg" disabled={busy} className="w-full">{busy && <Spinner />}{isReg ? 'Зарегистрироваться' : 'Войти'}</Button>
           </form>
+          {isReg && <p className="mt-4 text-xs leading-relaxed text-muted">Нажимая «Зарегистрироваться», вы принимаете <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-ink">Пользовательское соглашение</Link> и подтверждаете, что ознакомились с <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-ink">Политикой конфиденциальности</Link>.</p>}
           <p className="mt-6 text-sm text-ink-2">
             {isReg ? 'Уже есть аккаунт? ' : 'Нет аккаунта? '}
             <Link href={isReg ? '/login' : '/register'} className="font-medium text-accent-600 hover:underline">{isReg ? 'Войти' : 'Зарегистрироваться'}</Link>
           </p>
-          {isReg && <p className="mt-6 text-xs leading-relaxed text-muted">Регистрируясь, вы соглашаетесь с <Link href="/terms" className="underline underline-offset-2 hover:text-ink">условиями использования</Link> и <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">политикой конфиденциальности</Link>.</p>}
         </div>
       </main>
       <aside className="hidden border-l border-line bg-white lg:flex lg:flex-col lg:justify-center lg:px-12 xl:px-16">

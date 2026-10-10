@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Icon from './Icon';
 import { Logo, Meter, ScoreRing, cx } from './ui';
+import { COMPANY } from '@/lib/legal';
 
 export { default as LandingHeader } from './LandingHeader';
 
@@ -244,17 +245,17 @@ export function FinalCta({ signedIn }: { signedIn: boolean }) {
 
 /* ───────── Футер ───────── */
 export function LandingFooter() {
-  const links: [string, string][] = [['Возможности', '/#features'], ['Войти', '/login'], ['Регистрация', '/register'], ['Условия использования', '/terms'], ['Политика конфиденциальности', '/privacy']];
+  const links: [string, string][] = [['Возможности', '/#features'], ['Войти', '/login'], ['Регистрация', '/register']];
+  const docs: [string, string][] = [['Пользовательское соглашение', '/terms'], ['Политика конфиденциальности', '/privacy'], ['Согласие на обработку данных', '/consent']];
   return (
-    <footer>
-      <div className={cx(wrap, 'flex flex-col gap-6 py-10 md:flex-row md:items-center md:justify-between')}>
-        <div className="flex flex-col gap-1.5">
+    <footer className="border-t border-line">
+      <div className={cx(wrap, 'grid gap-8 py-10 md:grid-cols-[1.2fr_1fr_1fr]')}>
+        <div className="flex flex-col gap-2">
           <Link href="/" className="w-fit"><Logo size={26} className="text-[16px]" /></Link>
-          <span className="text-[13px] text-muted">© {new Date().getFullYear()} Карьерный навигатор</span>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">{`© ${new Date().getFullYear()} ${COMPANY.name}`}<br />{`ОГРН ${COMPANY.ogrn} · ИНН ${COMPANY.inn}`}<br />{COMPANY.address}</p>
         </div>
-        <nav aria-label="Нижнее меню"><ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-2">
-          {links.map(([t, h]) => <li key={t}><Link href={h} className="transition-colors hover:text-ink">{t}</Link></li>)}
-        </ul></nav>
+        <nav aria-label="Разделы сайта"><ul className="space-y-2 text-[14px] text-ink-2">{links.map(([t, h]) => <li key={t}><Link href={h} className="transition-colors hover:text-ink">{t}</Link></li>)}</ul></nav>
+        <nav aria-label="Документы"><ul className="space-y-2 text-[14px] text-ink-2">{docs.map(([t, h]) => <li key={t}><Link href={h} className="transition-colors hover:text-ink">{t}</Link></li>)}</ul></nav>
       </div>
     </footer>
   );
