@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler, json } from '@/lib/http';
+import { trackFirstAction } from '@/lib/partners/events';
 import { extractCompany, generateLetter } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { applyChanges } from '@/lib/changes';
@@ -24,5 +25,6 @@ export const POST = handler(async (req: Request) => {
     userName: user.name, vacancyTitle: vacancy.title, company: extractCompany(vacancy.text), p, resumeText, vacancyText: vacancy.text, variant,
   });
   const letter = await db.coverLetter.create({ data: { vacancyId, style, text, engine } });
+  void trackFirstAction(user.id);
   return json({ id: letter.id, text, style, engine });
 });

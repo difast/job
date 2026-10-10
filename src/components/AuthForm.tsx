@@ -35,6 +35,7 @@ export default function AuthForm({ mode, next: nextRaw }: { mode: 'login' | 'reg
         <div className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center py-10">
           <h1 className="text-[28px] font-semibold tracking-tight">{isReg ? 'Создайте аккаунт' : 'С возвращением'}</h1>
           <p className="mt-2 text-[15px] text-ink-2">{isReg ? 'Подготовьтесь к поиску работы под вашу профессию. Это бесплатно.' : 'Войдите, чтобы продолжить подготовку.'}</p>
+          {next?.startsWith('/link/jobtoo') && <Alert tone="info" className="mt-5">Войдите, чтобы связать аккаунт Clymly с JobToo.</Alert>}
           {next?.startsWith('/billing') && <Alert tone="info" className="mt-5">{isReg ? 'После регистрации и выбора профессии откроется страница подключения Clymly Pro.' : 'После входа откроется страница подключения Clymly Pro.'}</Alert>}
           <form onSubmit={submit} className="mt-8 space-y-4" noValidate={false}>
             {isReg && (

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler, json } from '@/lib/http';
+import { trackFirstAction } from '@/lib/partners/events';
 import { evaluateAnswer } from '@/lib/ai';
 import { requireProfession } from '@/lib/context';
 import { parseJson } from '@/lib/types';
@@ -17,5 +18,6 @@ export const POST = handler(async (req: Request) => {
   const p = await requireProfession(user);
   const feedback = await evaluateAnswer({ text: q.text, category: q.category, keyPoints: parseJson<string[]>(q.keyPoints, []), sampleAnswer: q.sampleAnswer }, answer, p);
   await db.practiceAttempt.create({ data: { userId: user.id, questionId, answer, score: feedback.score, feedback: JSON.stringify(feedback) } });
+  void trackFirstAction(user.id);
   return json({ feedback });
 });

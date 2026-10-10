@@ -82,13 +82,17 @@ model User {
   planUntil    DateTime? // до какого момента оплачен pro
   pdConsentAt  DateTime? // когда дано согласие на обработку персональных данных (отдельная отметка при регистрации)
   pdConsentVer String? // редакция документа согласия
+  hasPassword  Boolean     @default(true) // false — аккаунт создан партнёром (JobToo), пароль ещё не задан
+  source       String? // откуда пришёл пользователь: null — регистрация в Clymly, "jobtoo" — переход из JobToo
   createdAt    DateTime    @default(now())
 
-  sessions  Session[]
-  resumes   Resume[]
-  vacancies Vacancy[]
-  attempts  PracticeAttempt[]
-  payments  Payment[]
+  sessions        Session[]
+  resumes         Resume[]
+  vacancies       Vacancy[]
+  attempts        PracticeAttempt[]
+  payments        Payment[]
+  partnerLinks    PartnerLink[]
+  partnerConsents PartnerConsent[]
 }
 
 model Session {
@@ -189,4 +193,117 @@ model Payment {
   updatedAt         DateTime @updatedAt
 
   @@index([userId, createdAt])
+}
+
+// ───────── Интеграции с партнёрами (JobToo) ─────────
+// Формат обмена — docs/partner-api-v1.md. Персональные данные храним только там, где без них нельзя.
+
+// Связка аккаунта Clymly с аккаунтом у партнёра
+model PartnerLink {
+  id                   String    @id @default(cuid())
+  partner              String // jobtoo
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  externalUserId       String
+  linkedAt             DateTime  @default(now())
+  lastInboundRequestId String? // последний переход партнёр → Clymly (для события first_action)
+  firstActionAt        DateTime?
+
+  @@unique([partner, externalUserId])
+  @@unique([partner, userId])
+}
+
+// Согласие пользователя Clymly на передачу данных партнёру (направление Clymly → партнёр)
+model PartnerConsent {
+  id         String    @id @default(cuid())
+  partner    String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version    String
+  acceptedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId, partner])
+}
+
+// Журнал передач в обе стороны (без содержимого резюме). Для входящих — ещё и идемпотентность по requestId.
+model PartnerHandoff {
+  id             String   @id @default(cuid())
+  partner        String
+  direction      String // out — Clymly → партнёр; in — партнёр → Clymly
+  requestId      String
+  userId         String?
+  externalUserId String?
+  status         String // processing | ok | error
+  account        String? // created | found | link_required
+  errorCode      String?
+  fields         String   @default("[]") // JSON: какие поля переданы
+  placement      String?
+  platform       String?
+  durationMs     Int?
+  result         String? // JSON ответа без ссылки входа (для повторов того же requestId)
+  createdAt      DateTime @default(now())
+
+  @@unique([partner, direction, requestId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// Данные, полученные от партнёра и ещё не применённые: нет профессии / ждём привязки аккаунта. Удаляются после применения.
+model PartnerImport {
+  id        String   @id @default(cuid())
+  partner   String
+  handoffId String
+  userId    String?
+  payload   String // JSON: имя, должность, уровень, текст резюме, вакансия
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Одноразовые коды: вход по ссылке (login), продолжение привязки (link). Храним только хеш.
+model PartnerLoginCode {
+  id        String    @id @default(cuid())
+  codeHash  String    @unique
+  partner   String
+  purpose   String // login | link
+  userId    String?
+  importId  String?
+  requestId String
+  next      String? // куда вести после входа
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+// События аналитики переходов (без персональных данных, ссылок и кодов)
+model IntegrationEvent {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  partner       String
+  direction     String // out | in
+  event         String
+  requestId     String?
+  userId        String?
+  partnerUserId String?
+  placement     String?
+  platform      String?
+  account       String?
+  errorCode     String?
+  durationMs    Int?
+
+  @@index([partner, createdAt])
+  @@index([requestId])
+}
+
+// Очередь событий для отправки партнёру (POST /api/partner/v1/events), с повторами
+model PartnerEventOutbox {
+  id        String    @id @default(cuid())
+  partner   String
+  body      String // JSON одного события
+  attempts  Int       @default(0)
+  nextAt    DateTime  @default(now())
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([sentAt, nextAt])
 }

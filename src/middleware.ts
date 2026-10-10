@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Быстрый редирект на вход для разделов кабинета без cookie. Полная проверка сессии — на сервере (requirePageUser / API),
 // поэтому здесь только ускорение; неизвестные адреса получают обычный 404.
-const PRIVATE = ['/dashboard', '/resume', '/vacancies', '/cover-letter', '/interview', '/settings', '/billing', '/onboarding', '/pay'];
+const PRIVATE = ['/dashboard', '/resume', '/vacancies', '/cover-letter', '/interview', '/settings', '/billing', '/onboarding', '/pay', '/welcome', '/admin'];
 const isPrivate = (p: string) => PRIVATE.some((x) => p === x || p.startsWith(x + '/'));
 
 export function middleware(req: NextRequest) {

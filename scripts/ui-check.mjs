@@ -251,6 +251,50 @@ section('F. Тарифы на лендинге');
   await m.close();
 }
 
+/* ───────── G. Переход в JobToo (если сервер запущен с интеграцией и заглушкой) ───────── */
+if (process.env.JOBTOO === '1') {
+  section('G. Переход в JobToo');
+  const { startMockJobToo } = await import('./mock-jobtoo.mjs');
+  const mock = await startMockJobToo({ port: 4100, secret: process.env.JOBTOO_OUTBOUND_SECRET ?? 'test-out' });
+  for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
+    const c = await browser.newContext({ viewport: { width: w, height: h }, storageState: await ctx.storageState() });
+    const p = await c.newPage(); watch(p);
+    await p.goto(BASE + '/resume');
+    const btn = p.getByTestId('jobtoo-resume');
+    ok(await btn.waitFor({ timeout: 8000 }).then(() => true, () => false), `${label}: кнопка «Перейти в JobToo» в «Моём резюме»`);
+    if (label === 'desktop') {
+      await btn.click();
+      await p.waitForSelector('[role=dialog]:has-text("Передать данные в JobToo?")');
+      ok(await p.getByTestId('jobtoo-consent-ok').isDisabled(), 'окно согласия: без галочки продолжить нельзя');
+      await p.click('[role=dialog] button:has-text("Отмена")');
+      ok(!(await p.locator('[role=dialog]').count()), 'отмена закрывает окно, переход не выполняется');
+      await btn.click();
+      await p.getByTestId('jobtoo-consent').check();
+      await shot('G1-jobtoo-consent', false, p);
+      await p.getByTestId('jobtoo-consent-ok').click();
+      await p.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
+      ok((await p.textContent('h1')).includes('JobToo'), 'после согласия — переход в кабинет JobToo по одноразовой ссылке');
+      ok(mock.state.handoffs.length === 1 && mock.state.badSignatures === 0, 'JobToo получил один подписанный запрос');
+    } else {
+      await btn.click();
+      await p.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
+      ok(true, 'mobile: повторный переход — без окна согласия');
+      await p.goBack();
+      await p.waitForSelector('[data-testid=jobtoo-resume]');
+      await shot('G2-jobtoo-mobile', false, p);
+      ok(!(await overflow(p)), 'mobile: «Моё резюме» с блоком JobToo без горизонтального скролла');
+    }
+    await c.close();
+  }
+  mock.state.mode = 'error';
+  { const c = await browser.newContext({ storageState: await ctx.storageState() }); const p = await c.newPage();
+    await p.goto(BASE + '/dashboard'); await p.getByTestId('jobtoo-dashboard').click();
+    await p.waitForSelector('text=JobToo: не удалось разобрать резюме');
+    ok(await p.getByRole('button', { name: 'Повторить' }).isVisible() && p.url().endsWith('/dashboard'), 'ошибка JobToo: понятный текст и «Повторить», пользователь остаётся в Clymly');
+    await c.close(); }
+  await mock.close();
+}
+
 /* ───────── Адаптивность ───────── */
 section('Адаптивность (desktop / tablet / mobile)');
 const state = await ctx.storageState();

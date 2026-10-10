@@ -5,6 +5,8 @@ import { relativeDay } from '@/lib/format';
 import { parseJson, type ResumeAnalysis } from '@/lib/types';
 import { Alert, PageHeader, buttonClass } from '@/components/ui';
 import Icon from '@/components/Icon';
+import JobTooButton from '@/components/JobTooButton';
+import { jobtooButtonState } from '@/lib/partners/state';
 import ResumeUploader from '@/components/ResumeUploader';
 import { ResumeAnalysisView } from '@/components/ResumeAnalysisView';
 import { DeleteResumeButton, ReanalyzeButton } from '@/components/ResumeActions';
@@ -21,6 +23,7 @@ export default async function ResumePage() {
     );
   }
   const a = parseJson<ResumeAnalysis>(resume.analysis, null as unknown as ResumeAnalysis);
+  const jt = await jobtooButtonState(user.id);
   const stale = resume.professionId !== user.professionId || resume.level !== user.level;
 
   return (
@@ -47,6 +50,11 @@ export default async function ResumePage() {
             </div>
             <div className="mt-4 border-t border-line pt-3"><DeleteResumeButton /></div>
           </section>
+          {jt && <section className="rounded-2xl border border-line bg-white p-5" aria-label="JobToo" data-testid="jobtoo-card">
+            <div className="text-[15px] font-medium">Ищете вакансии?</div>
+            <p className="mt-1 text-sm leading-relaxed text-ink-2">Перенесём профиль и резюме в JobToo — сервис поиска работы. Регистрироваться заново не нужно.</p>
+            <JobTooButton placement="resume" hasConsent={jt.hasConsent} full className="mt-4" />
+          </section>}
         </aside>
       </div>
 

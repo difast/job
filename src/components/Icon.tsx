@@ -17,6 +17,7 @@ const P: Record<string, string[]> = {
   target: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z', 'M12 12h.01'],
   'chevron-right': ['m9 6 6 6-6 6'],
   'chevron-left': ['m15 6-6 6 6 6'],
+  external: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'],
   'chevron-down': ['m6 9 6 6 6-6'],
   'arrow-right': ['M5 12h14', 'm13 6 6 6-6 6'],
   'arrow-left': ['M19 12H5', 'm11 6-6 6 6 6'],

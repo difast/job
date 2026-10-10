@@ -6,6 +6,7 @@ import { LEVELS } from '@/lib/types';
 import { analyzeResume } from '@/lib/ai';
 import { getProfessionContext } from '@/lib/profession';
 import { latestResume } from '@/lib/context';
+import { applyPendingImports } from '@/lib/partners/imports';
 
 const schema = z.object({
   professionId: z.string().min(1).optional(),
@@ -30,5 +31,8 @@ export const PATCH = handler(async (req: Request) => {
       }
     } catch (e) { console.warn('[profile] resume re-analysis failed', e); }
   }
-  return json({ ok: true, professionId: updated.professionId, level: updated.level, name: updated.name });
+  // Данные из JobToo, ожидавшие выбора профессии, применяются сразу после него
+  let landing: string | null = null;
+  if (updated.professionId && updated.level) landing = await applyPendingImports(user.id).catch(() => null);
+  return json({ ok: true, professionId: updated.professionId, level: updated.level, name: updated.name, landing });
 });

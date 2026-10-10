@@ -46,12 +46,22 @@ src/app/(app)         dashboard, резюме,          src/lib          auth, d
                       собеседование, настройки    scripts/         e2e и UI-проверки
 ```
 
+## Интеграция с JobToo
+* Формат обмена (v1, одинаковый в обе стороны) и адреса Clymly — `docs/partner-api-v1.md`. Код — `src/lib/partners/*`.
+* Включается `JOBTOO_INTEGRATION_ENABLED=1` + `JOBTOO_API_BASE` + `JOBTOO_OUTBOUND_SECRET` + `JOBTOO_INBOUND_SECRET` (см. `.env.example`). Без них кнопки скрыты, приём отвечает 503.
+* JobToo → Clymly: `POST /api/partner/v1/handoff` → одноразовая ссылка `/sso/jobtoo?code=…` (2 минуты, один раз). Существующий e-mail — только через вход владельца и привязку (`/link/jobtoo`).
+* Clymly → JobToo: кнопка «Перейти в JobToo» (главная, «Моё резюме», адаптация) с окном согласия.
+* Аналитика переходов — `IntegrationEvent`, отчёт `/admin/integrations` (доступ по `ADMIN_EMAILS`), обмен событиями — `POST /api/partner/v1/events`.
+
 ## Проверки
 ```bash
 npm test                                         # юнит-тесты логики и справочников
 npm run build && npx next start -p 3100 &        # затем:
 BASE_URL=http://localhost:3100 npm run e2e       # сквозной сценарий через HTTP (~110 проверок, включая лендинг)
 BASE_URL=http://localhost:3100 npm run ui-check  # сценарий в реальном Chromium + скриншоты, mobile/tablet
+# интеграция с JobToo: сервер с JOBTOO_INTEGRATION_ENABLED=1 JOBTOO_API_BASE=http://localhost:4100 JOBTOO_OUTBOUND_SECRET=test-out JOBTOO_INBOUND_SECRET=test-in ADMIN_EMAILS=admin_e2e@example.com
+ADMIN=admin_e2e@example.com BASE_URL=http://localhost:3100 node scripts/partner-e2e.mjs   # заглушка JobToo поднимается сама на :4100
+JOBTOO=1 BASE_URL=http://localhost:3100 npm run ui-check                                # + сценарий G «Перейти в JobToo»
 ```
 
 ## Вне MVP (по ТЗ)

@@ -11,6 +11,8 @@ import { ChangeGoalButton } from '@/components/GoalContext';
 import ResumeUploader from '@/components/ResumeUploader';
 import { ReanalyzeButton } from '@/components/ResumeActions';
 import { AdaptButton } from '@/components/VacancyActions';
+import JobTooButton from '@/components/JobTooButton';
+import { jobtooButtonState } from '@/lib/partners/state';
 
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10, m100 = n % 100;
@@ -31,6 +33,7 @@ export default async function Dashboard() {
   const profession = user.profession!.name;
   const { tier, until } = currentTier(user);
 
+  const jt = resume ? await jobtooButtonState(user.id) : null;
   const stale = !!resume && (resume.professionId !== user.professionId || resume.level !== user.level);
 
   // Следующий шаг на пути «резюме → вакансия → адаптация → письмо → собеседование».
@@ -89,6 +92,11 @@ export default async function Dashboard() {
             </div>
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent-50 text-accent-600 transition-colors group-hover:bg-accent-100"><Icon name="shield" size={20} /></span>
           </Link>
+          {jt && <section className="rounded-2xl border border-line bg-white p-5" aria-label="JobToo" data-testid="jobtoo-card">
+            <div className="text-[15px] font-medium">Ищете вакансии?</div>
+            <p className="mt-1 text-sm leading-relaxed text-ink-2">Перенесём профиль и резюме в JobToo — сервис поиска работы. Регистрироваться заново не нужно.</p>
+            <JobTooButton placement="dashboard" hasConsent={jt.hasConsent} full className="mt-4" />
+          </section>}
         </aside>
 
         {/* Основная колонка */}

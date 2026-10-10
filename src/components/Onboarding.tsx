@@ -21,9 +21,10 @@ export default function Onboarding({ name, next }: { name: string; next?: string
   async function finish() {
     if (!profId || !level || busy) return;
     setBusy(true); setError('');
-    const r = await request('/api/profile', { method: 'PATCH', json: { professionId: profId, level }, timeoutMs: 30_000 });
+    const r = await request<{ landing?: string | null }>('/api/profile', { method: 'PATCH', json: { professionId: profId, level }, timeoutMs: 90_000 });
     if (!r.ok) { setError(r.error); setBusy(false); return; }
-    router.push(safeNext(next) ?? '/dashboard');
+    // Данные из JobToo применяются после выбора цели — сразу ведём к результату
+    router.push(safeNext(r.data.landing) ?? safeNext(next) ?? '/dashboard');
     router.refresh();
   }
 

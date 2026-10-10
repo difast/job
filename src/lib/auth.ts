@@ -40,6 +40,8 @@ export async function getUser() {
 export async function requirePageUser({ onboarded = true }: { onboarded?: boolean } = {}) {
   const user = await getUser();
   if (!user) redirect('/login');
+  // Аккаунт создан партнёром (JobToo): сначала — согласие на обработку данных в Clymly
+  if (!user.pdConsentAt) redirect('/welcome');
   if (onboarded && (!user.professionId || !user.level)) redirect('/onboarding');
   return user;
 }
@@ -48,5 +50,6 @@ export async function requirePageUser({ onboarded = true }: { onboarded?: boolea
 export async function requireApiUser() {
   const user = await getUser();
   if (!user) throw new ApiError(401, 'Необходима авторизация');
+  if (!user.pdConsentAt) throw new ApiError(403, 'Примите условия использования Clymly, чтобы продолжить');
   return user;
 }

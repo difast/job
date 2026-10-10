@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireApiUser } from '@/lib/auth';
 import { handler, json } from '@/lib/http';
+import { trackFirstAction } from '@/lib/partners/events';
 import { analyzeVacancy } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 
@@ -17,5 +18,6 @@ export const POST = handler(async (req: Request) => {
   const v = await db.vacancy.create({
     data: { userId: user.id, title: analysis.title.slice(0, 120), text, analysis: JSON.stringify(analysis), matchScore: analysis.matchScore, resumeId: resume.id },
   });
+  void trackFirstAction(user.id);
   return json({ id: v.id });
 });

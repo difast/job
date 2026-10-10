@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler, json } from '@/lib/http';
+import { trackFirstAction } from '@/lib/partners/events';
 import { adaptResume } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
@@ -19,5 +20,6 @@ export const POST = handler(async (_req: Request, { params }: { params: Promise<
   const { changes, engine } = await adaptResume(resume.text, vacancy.text, analysis, p);
   const data = { resumeId: resume.id, changes: JSON.stringify(changes), engine };
   const a = await db.adaptation.upsert({ where: { vacancyId: vacancy.id }, update: data, create: { vacancyId: vacancy.id, ...data } });
+  void trackFirstAction(user.id);
   return json({ id: a.id, changes: changes.length });
 });
