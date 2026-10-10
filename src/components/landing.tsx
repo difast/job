@@ -270,7 +270,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
         </article>
 
         <article className="relative flex flex-col rounded-[28px] border-2 border-accent-600 bg-white p-7 sm:p-9" data-testid="pricing-pro-quarter">
-          <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">Экономия 19%</span>
+          <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">Экономия 20%</span>
           <div className="flex flex-wrap items-center gap-2.5">
             <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">Pro на 3 месяца</h3>
             <span className="rounded-full bg-accent-50 px-2.5 py-0.5 text-[12px] font-medium text-accent-700">3 месяца</span>

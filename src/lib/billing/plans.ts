@@ -30,7 +30,7 @@ export const PLANS: Plan[] = [
   {
     id: 'pro-quarter', tier: 'pro', name: 'Clymly Pro на 3 месяца', period: 'за 3 месяца', months: 3, price: 1190_00,
     description: 'Типичный срок поиска работы — выгоднее помесячной оплаты',
-    features: ['Всё из тарифа Pro', 'Экономия 19% по сравнению с оплатой Pro помесячно'],
+    features: ['Всё из тарифа Pro', 'Экономия 20% по сравнению с оплатой Pro помесячно'],
     note: '≈ 397 ₽ в месяц',
   },
 ];
