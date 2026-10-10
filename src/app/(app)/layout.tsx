@@ -1,9 +1,12 @@
+import type { Metadata } from 'next';
 import AppShell from '@/components/AppShell';
 import { GoalProvider } from '@/components/GoalContext';
 import { ToastProvider } from '@/components/Toast';
 import { requirePageUser } from '@/lib/auth';
 import type { LevelKey } from '@/lib/types';
 import { currentTier } from '@/lib/billing/plans';
+
+export const metadata: Metadata = { title: 'Личный кабинет', robots: { index: false, follow: false } };
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await requirePageUser();

@@ -40,6 +40,27 @@ ok(html.includes('name="consent"') && html.includes('href="/consent"') && html.i
 ok((await req('/health-not-exists')).status === 404, 'несуществующая страница → 404');
 ok((await (await req('/api/health')).json()).status === 'ok', '/api/health');
 
+// Бренд Clymly: старое название отсутствует, логотип, иконки, PWA, SEO
+const OLD = /Карьерн|навигатор/i;
+for (const p of ['/', '/login', '/register', '/terms', '/privacy', '/consent', '/robots.txt', '/sitemap.xml', '/manifest.webmanifest']) {
+  const t = await (await req(p)).text();
+  ok(!OLD.test(t), `бренд: на ${p} нет старого названия`);
+}
+html = await (await req('/')).text();
+ok((html.match(/class="brand-y1"/g) ?? []).length >= 1 && (html.match(/class="brand-y2"/g) ?? []).length >= 1 && html.includes('aria-label="Clymly"'), 'логотип: две «y» с фирменными классами, доступное имя Clymly');
+ok(html.includes('<link rel="canonical" href="https://clymly.ru"') && html.includes('property="og:url" content="https://clymly.ru"') && html.includes('og:image') && html.includes('twitter:card'), 'SEO: canonical, Open Graph и Twitter на clymly.ru');
+ok(/rel="icon" href="\/favicon\.ico"/.test(html) && /rel="icon" href="\/icon\.svg\?[a-f0-9]+"/.test(html) && /rel="apple-touch-icon" href="\/apple-icon\.png\?[a-f0-9]+"/.test(html) && html.includes('rel="manifest"'), 'иконки: favicon.ico, SVG и Apple Touch Icon (с версией в URL) подключены');
+for (const [p, type] of [['/favicon.ico', 'image/x-icon'], ['/icon.svg', 'image/svg+xml'], ['/apple-icon.png', 'image/png'], ['/icons/icon-192.png', 'image/png'], ['/icons/icon-512.png', 'image/png'], ['/icons/maskable-512.png', 'image/png'], ['/opengraph-image', 'image/png']]) {
+  const r = await req(p);
+  ok(r.status === 200 && (r.headers.get('content-type') ?? '').startsWith(type), `${p} доступен без входа (${type})`);
+}
+const mf = await (await req('/manifest.webmanifest')).json();
+ok(mf.name.startsWith('Clymly') && mf.short_name === 'Clymly' && mf.icons.some((i) => i.purpose === 'maskable') && mf.icons.some((i) => i.sizes === '512x512'), 'PWA manifest: название Clymly, иконки 192/512 и maskable');
+for (const i of mf.icons) ok((await req(i.src)).status === 200, `manifest: иконка ${i.src} доступна`);
+ok((await (await req('/robots.txt')).text()).includes('Sitemap: https://clymly.ru/sitemap.xml'), 'robots.txt ссылается на sitemap clymly.ru');
+ok((await (await req('/sitemap.xml')).text()).includes('<loc>https://clymly.ru/terms</loc>'), 'sitemap.xml на домене clymly.ru');
+for (const p of ['/terms', '/privacy', '/consent']) { const t = await (await req(p)).text(); ok(t.includes('Clymly') && t.includes('https://clymly.ru'), `документ ${p}: бренд Clymly и домен clymly.ru`); }
+
 const email = `e2e_${Date.now()}@example.com`;
 
 // Авторизация

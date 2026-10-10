@@ -19,6 +19,21 @@ const shot = async (n, full = true, p = page) => { await p.waitForTimeout(900); 
 const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
 const toast = async (re) => { try { await page.waitForFunction((src) => new RegExp(src, 'i').test(document.querySelector('[data-testid=toast]')?.textContent ?? ''), re.source, { timeout: 6000 }); return true; } catch { return false; } };
 
+/* ───────── Бренд ───────── */
+section('Бренд Clymly');
+const logoColors = (p, scope) => p.evaluate((sel) => {
+  const logo = document.querySelector(`${sel} [data-testid=logo]`);
+  if (!logo) return null;
+  const c = (el) => getComputedStyle(el).color;
+  return { text: c(logo), y1: c(logo.querySelector('.brand-y1')), y2: c(logo.querySelector('.brand-y2')), label: logo.getAttribute('aria-label'), visible: logo.textContent.trim() };
+}, scope);
+await page.goto(BASE + '/');
+const light = await logoColors(page, 'header');
+ok(light && light.visible === 'Clymly' && light.label === 'Clymly', 'лендинг: текстовый логотип «Clymly»');
+ok(light && light.y1 === 'rgb(180, 71, 42)' && light.y2 === 'rgb(91, 35, 33)' && light.text === 'rgb(28, 26, 23)', `светлый фон: 1-я y терракотовая, 2-я винная, остальные буквы — цвет текста (${JSON.stringify(light)})`);
+ok(await page.evaluate(() => !/Карьерн|навигатор/i.test(document.body.innerText + document.title)), 'лендинг: нет старого названия ни в тексте, ни в title');
+ok((await page.title()).startsWith('Clymly'), `title: ${await page.title()}`);
+
 /* ───────── A. Новый пользователь ───────── */
 section('A. Новый пользователь');
 await page.goto(BASE + '/');
@@ -44,6 +59,8 @@ ok(true, 'онбординг: профессия → уровень → каби
 ok((await page.textContent('[data-testid=target-profession]')) === 'Продакт-менеджер' && (await page.textContent('[data-testid=target-level]')) === 'Middle', 'верхняя панель: цель видна (профессия и уровень)');
 ok(await page.locator('text=Начните с резюме').isVisible() && await page.getByRole('button', { name: 'Загрузить резюме' }).isVisible(), 'главная: очевидно, как загрузить резюме (единственный CTA)');
 ok(await page.locator('nav[aria-label="Ваш путь"]').isVisible(), 'главная: панель «Ваш путь» со статусами');
+const dark = await logoColors(page, 'header');
+ok(dark && dark.y1 === 'rgb(230, 144, 111)' && dark.y2 === 'rgb(211, 156, 149)' && dark.text === 'rgb(251, 249, 245)', `тёмный фон (кабинет): светлые варианты фирменных цветов (${JSON.stringify(dark)})`);
 await shot('A1-dashboard-empty');
 
 /* ───────── B. Анализ резюме ───────── */

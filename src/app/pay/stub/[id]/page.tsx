@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requirePageUser } from '@/lib/auth';
@@ -9,6 +10,8 @@ import Icon from '@/components/Icon';
 import StubCheckout from '@/components/StubCheckout';
 
 // Заглушка платёжной страницы ЮKassa (тестовый режим). После подключения ЮKassa пользователь попадает на её страницу.
+export const metadata: Metadata = { title: 'Оплата', robots: { index: false, follow: false } };
+
 export default async function StubPayPage({ params }: { params: Promise<{ id: string }> }) {
   if (!isTestMode()) notFound();
   const user = await requirePageUser({ onboarded: false });

@@ -1,5 +1,8 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClass, Logo } from '@/components/ui';
+
+export const metadata: Metadata = { title: 'Страница не найдена' };
 
 export default function NotFound() {
   return (

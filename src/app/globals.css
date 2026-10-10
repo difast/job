@@ -35,6 +35,12 @@
   --color-bad: #a93a2f;
   --color-bad-soft: #fbebe8;
 
+  /* Логотип Clymly: две «y» — фирменные цвета (на светлом и тёмном фоне) */
+  --color-brand-y1: #b4472a;
+  --color-brand-y2: #5b2321;
+  --color-brand-y1-inv: #e6906f;
+  --color-brand-y2-inv: #d39c95;
+
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(28, 26, 23, 0.05);
   --shadow-pop: 0 12px 40px -8px rgba(28, 26, 23, 0.2), 0 2px 6px rgba(28, 26, 23, 0.06);
@@ -48,6 +54,10 @@ body {
 }
 h1, h2, h3 { letter-spacing: -0.022em; font-family: var(--font-display); }
 .font-display { font-family: var(--font-display); font-feature-settings: "ss01"; }
+.brand-y1 { color: var(--color-brand-y1); }
+.brand-y2 { color: var(--color-brand-y2); }
+.logo-inverted .brand-y1 { color: var(--color-brand-y1-inv); }
+.logo-inverted .brand-y2 { color: var(--color-brand-y2-inv); }
 ::selection { background: var(--color-accent-100); }
 button { cursor: pointer; font: inherit; }
 button:disabled { cursor: not-allowed; }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import Icon, { type IconName } from './Icon';
+import { BRAND, BRAND_COLORS, MARK } from '@/lib/brand';
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ');
 
@@ -155,19 +156,27 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
   );
 }
 
-/* ───────── Логотип ───────── */
-export function LogoMark({ size = 28, inverted }: { size?: number; inverted?: boolean }) {
+/* ───────── Логотип Clymly ─────────
+   Текстовый логотип: «Cl» «y» «ml» «y». Первая «y» — терракота, вторая — винный; остальные буквы — цвет текста.
+   inverted — для тёмного фона (светлые варианты фирменных цветов). Знак — та же «y», что в favicon. */
+export function LogoMark({ size = 28 }: { size?: number; inverted?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="9" fill={inverted ? '#fbf9f5' : '#1c1a17'} />
-      <path d="M8.5 21.5 14.5 15l3.5 3.5L23.5 12" stroke={inverted ? '#1c1a17' : '#fbf9f5'} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="23.5" cy="12" r="2.6" fill="#c95a37" />
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="shrink-0">
+      <rect width="64" height="64" rx="15" fill={BRAND_COLORS.wine} />
+      <path d={MARK.arm} stroke={BRAND_COLORS.terracottaLight} strokeWidth={MARK.stroke} strokeLinecap="round" fill="none" />
+      <path d={MARK.stem} stroke={BRAND_COLORS.milk} strokeWidth={MARK.stroke} strokeLinecap="round" fill="none" />
     </svg>
   );
 }
 
-export function Logo({ size = 28, className, inverted }: { size?: number; className?: string; inverted?: boolean }) {
-  return <span className={cx('font-display inline-flex items-center gap-2.5 font-semibold tracking-tight', className)}><LogoMark size={size} inverted={inverted} /><span>Карьерный навигатор</span></span>;
+export function Logo({ size = 22, className, inverted }: { size?: number; className?: string; inverted?: boolean }) {
+  return (
+    <span role="img" aria-label={BRAND.name} data-testid="logo"
+      className={cx('font-display inline-flex select-none items-baseline font-semibold leading-none tracking-[-0.035em]', inverted ? 'logo-inverted text-milk' : 'text-ink', className)}
+      style={{ fontSize: size }}>
+      <span aria-hidden="true">Cl<span className="brand-y1">y</span>ml<span className="brand-y2">y</span></span>
+    </span>
+  );
 }
 
 export const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·';

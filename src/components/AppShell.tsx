@@ -82,8 +82,8 @@ export default function AppShell({ children, user, professionName, level, tier }
       <header className="sticky top-0 z-40 bg-graphite text-milk">
         <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-3 px-4 sm:px-8 lg:h-16 lg:gap-6">
           <Link href="/dashboard" aria-label="Главная" className="shrink-0">
-            <span className="lg:hidden"><LogoMark size={30} inverted /></span>
-            <span className="hidden lg:block"><Logo inverted className="text-[16px] text-milk xl:text-[17px]" /></span>
+            <span className="lg:hidden"><LogoMark size={30} /></span>
+            <span className="hidden lg:block"><Logo inverted size={22} /></span>
           </Link>
           <nav aria-label="Основное меню" className="hidden h-full items-stretch lg:flex">
             {NAV.map((n) => {

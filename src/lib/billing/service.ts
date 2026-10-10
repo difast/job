@@ -2,6 +2,7 @@ import { db } from '../db';
 import { ApiError } from '../http';
 import { extendUntil, getPlan } from './plans';
 import { getProvider, type PaymentStatus } from './provider';
+import { BRAND } from '../brand';
 
 /** Создаёт платёж у провайдера и возвращает ссылку, куда отправить пользователя. */
 export async function createCheckout(user: { id: string; email: string }, planId: string, origin: string) {
@@ -11,7 +12,7 @@ export async function createCheckout(user: { id: string; email: string }, planId
   const payment = await db.payment.create({ data: { userId: user.id, provider: provider.name, planId: plan.id, amount: plan.price, status: 'pending' } });
   try {
     const res = await provider.createPayment({
-      paymentId: payment.id, amount: plan.price, description: `Карьерный навигатор: ${plan.name}`,
+      paymentId: payment.id, amount: plan.price, description: `${BRAND.name}: ${plan.name}`,
       returnUrl: `${origin}/billing?payment=${payment.id}`, customerEmail: user.email,
     });
     await db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: res.providerPaymentId, confirmationUrl: res.confirmationUrl, status: res.status } });

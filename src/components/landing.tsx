@@ -251,7 +251,7 @@ export function LandingFooter() {
     <footer className="border-t border-line">
       <div className={cx(wrap, 'grid gap-8 py-10 md:grid-cols-[1.2fr_1fr_1fr]')}>
         <div className="flex flex-col gap-2">
-          <Link href="/" className="w-fit"><Logo size={26} className="text-[16px]" /></Link>
+          <Link href="/" aria-label="Clymly — на главную" className="w-fit"><Logo size={22} /></Link>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">{`© ${new Date().getFullYear()} ${COMPANY.name}`}<br />{`ОГРН ${COMPANY.ogrn} · ИНН ${COMPANY.inn}`}<br />{COMPANY.address}</p>
         </div>
         <nav aria-label="Разделы сайта"><ul className="space-y-2 text-[14px] text-ink-2">{links.map(([t, h]) => <li key={t}><Link href={h} className="transition-colors hover:text-ink">{t}</Link></li>)}</ul></nav>

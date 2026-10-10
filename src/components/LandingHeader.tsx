@@ -19,7 +19,7 @@ export default function LandingHeader({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="sticky top-0 z-40 bg-canvas/85 backdrop-blur-md">
       <div className={cx(wrap, 'flex h-[72px] items-center justify-between gap-6')}>
-        <Link href="/" aria-label="Карьерный навигатор — на главную" className="shrink-0"><Logo className="text-[17px]" /></Link>
+        <Link href="/" aria-label="Clymly — на главную" className="shrink-0"><Logo size={24} /></Link>
         <nav aria-label="Разделы" className="hidden items-center gap-8 text-[15px] text-ink-2 lg:flex">
           {LINKS.map(([t, h]) => <a key={h} href={h} className="transition-colors hover:text-ink">{t}</a>)}
         </nav>
