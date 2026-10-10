@@ -26,7 +26,7 @@ export async function createCheckout(user: { id: string; email: string }, planId
   const { payment, reused } = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'checkout:' + user.id}))`;
     const open = await tx.payment.findFirst({
-      where: { userId: user.id, planId: plan.id, provider: provider.name, status: 'pending', issue: null, amount: plan.price, confirmationUrl: { not: null }, createdAt: { gte: new Date(Date.now() - REUSE_MS) } },
+      where: { userId: user.id, planId: plan.id, provider: provider.name, status: 'pending', issue: null, amount: plan.price, createdAt: { gte: new Date(Date.now() - REUSE_MS) }, OR: [{ confirmationUrl: { not: null } }, { createdAt: { gte: new Date(Date.now() - 60_000) } }] },
       orderBy: { createdAt: 'desc' },
     });
     if (open) return { payment: open, reused: true };
@@ -34,7 +34,16 @@ export async function createCheckout(user: { id: string; email: string }, planId
     await logEvent(created.id, 'pending', 'checkout', `${plan.id}, ${plan.price / 100} RUB`, tx);
     return { payment: created, reused: false };
   });
-  if (reused) return { paymentId: payment.id, confirmationUrl: payment.confirmationUrl! };
+  if (reused) {
+    // Заказ мог только что создаться параллельным запросом — дожидаемся ссылки на оплату от провайдера
+    for (let i = 0; i < 50; i++) {
+      const cur = i ? await db.payment.findUnique({ where: { id: payment.id } }) : payment;
+      if (cur?.confirmationUrl && cur.status === 'pending') return { paymentId: cur.id, confirmationUrl: cur.confirmationUrl };
+      if (!cur || cur.status !== 'pending') break;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    throw new ApiError(409, 'Платёж уже создаётся. Обновите страницу через несколько секунд.');
+  }
 
   try {
     const res = await provider.createPayment({
@@ -59,7 +68,7 @@ export async function createCheckout(user: { id: string; email: string }, planId
  */
 export async function applyStatus(paymentId: string, status: PaymentStatus, source = 'provider', note?: string): Promise<boolean> {
   if (status === 'pending') return false;
-  return db.$transaction(async (tx) => {
+  const activated = await db.$transaction(async (tx) => {
     const p = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!p) return false;
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${p.userId} FOR UPDATE`; // одна активация за раз на пользователя
@@ -76,8 +85,11 @@ export async function applyStatus(paymentId: string, status: PaymentStatus, sour
     const until = extendUntil(active, months, now);
     await tx.user.update({ where: { id: p.userId }, data: { plan: 'pro', planUntil: until } });
     await tx.payment.update({ where: { id: paymentId }, data: { accessFrom: from, accessUntil: until } });
-    return true;
+    return 'activated' as const;
   });
+  // Письмо об оплате — ровно один раз (сюда доходит только переход pending → succeeded), не задерживая ответ
+  if (activated === 'activated') void import('../emails').then((m) => m.sendPaymentSucceeded(paymentId)).catch((e) => console.error('[mail] payment', (e as Error).message));
+  return !!activated;
 }
 
 /** Помечает заказ для ручной проверки, не меняя статус платежа и доступ. */

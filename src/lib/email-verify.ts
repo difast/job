@@ -21,7 +21,7 @@ export async function sendVerification(user: { id: string; email: string; name: 
     outro: 'Ссылка действует 24 часа. Если вы не регистрировались в Clymly, просто проигнорируйте письмо. Вопросы — support@clymly.ru.',
   });
   try {
-    return await sendMail({ to: user.email, subject: 'Подтвердите e-mail в Clymly', html, text });
+    return await sendMail({ to: user.email, subject: 'Подтвердите e-mail в Clymly', html, text, kind: 'verify' });
   } catch (e) {
     console.error('[mail] verification send failed', (e as Error).message);
     return { sent: false, error: 'Не удалось отправить письмо. Попробуйте позже.' };
@@ -42,5 +42,7 @@ export async function verifyToken(token: string | null | undefined): Promise<{ r
   const upd = await db.emailToken.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: new Date() } });
   if (!upd.count) return { result: 'already', userId: row.userId };
   await db.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } });
+  // Приветствие — после первого подтверждения адреса (одноразовая ссылка, поэтому письмо одно)
+  void import('./emails').then((m) => m.sendWelcome(row.user)).catch(() => undefined);
   return { result: 'verified', userId: row.userId };
 }

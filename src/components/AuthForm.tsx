@@ -46,7 +46,7 @@ export default function AuthForm({ mode, next: nextRaw }: { mode: 'login' | 'reg
             <label className="block text-sm font-medium">E-mail
               <input name="email" type="email" required autoComplete="email" className={`${input} mt-1.5`} placeholder="you@example.com" />
             </label>
-            <label className="block text-sm font-medium">Пароль
+            <label className="block text-sm font-medium"><span className="flex items-center justify-between">Пароль{!isReg && <Link href="/forgot-password" className="text-[13px] font-normal text-accent-600 hover:underline" data-testid="forgot-link">Забыли пароль?</Link>}</span>
               <input name="password" type="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={`${input} mt-1.5`} placeholder={isReg ? 'Минимум 8 символов' : 'Ваш пароль'} />
             </label>
             {isReg && (
