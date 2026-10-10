@@ -57,7 +57,7 @@ export default async function Dashboard() {
           <h2 id="qa" className="mb-3 text-lg font-semibold tracking-tight">Что дальше</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {actions.map((x) => (
-              <Link key={x.title} href={x.href} className="group flex flex-col rounded-xl border border-line bg-white p-5 shadow-card transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_20px_-10px_rgba(14,17,32,0.2)]">
+              <Link key={x.title} href={x.href} className="group flex flex-col rounded-xl border border-line bg-white p-5 shadow-card transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_20px_-10px_rgba(28,26,23,0.2)]">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-50 text-accent-600 transition-colors group-hover:bg-accent-100"><Icon name={x.icon} size={19} /></span>
                 <h3 className="mt-4 text-[15px] font-semibold leading-snug tracking-tight">{x.title}</h3>
                 <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-ink-2">{x.text}</p>

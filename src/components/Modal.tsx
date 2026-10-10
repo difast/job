@@ -24,7 +24,7 @@ export default function Modal({ open, onClose, title, description, children, foo
   return (
     <div className="fade-in fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={id}
-        className={`sheet-in flex max-h-[92dvh] w-full ${width} flex-col rounded-t-2xl bg-white shadow-[0_24px_80px_-12px_rgba(14,17,32,0.35)] outline-none sm:rounded-2xl`}>
+        className={`sheet-in flex max-h-[92dvh] w-full ${width} flex-col rounded-t-2xl bg-white shadow-[0_24px_80px_-12px_rgba(28,26,23,0.35)] outline-none sm:rounded-2xl`}>
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div>
             <h2 id={id} className="text-lg font-semibold tracking-tight">{title}</h2>

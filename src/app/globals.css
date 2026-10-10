@@ -4,32 +4,40 @@
    Один акцентный цвет (индиго), спокойная нейтральная шкала, семантика для статусов. */
 @theme {
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Onest Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 
-  --color-canvas: #f8f8fa;
-  --color-ink: #0e1120;
-  --color-ink-2: #444a5e;
-  --color-muted: #7a8095;
-  --color-line: #e6e8ee;
-  --color-line-strong: #d3d6e0;
-  --color-subtle: #f3f4f8;
+  /* Тёплая нейтральная основа: молочный, камень, графит */
+  --color-canvas: #f6f3ee;
+  --color-milk: #fbf9f5;
+  --color-stone: #ece6dc;
+  --color-ink: #1c1a17;
+  --color-ink-2: #4a453f;
+  --color-muted: #847b71;
+  --color-line: #e6e0d6;
+  --color-line-strong: #d4ccbf;
+  --color-subtle: #f1ece4;
+  --color-graphite: #22201d;
+  --color-wine: #5b2321;
 
-  --color-accent-50: #f0f1ff;
-  --color-accent-100: #e3e5ff;
-  --color-accent-200: #c9ccff;
-  --color-accent-500: #5b5bf0;
-  --color-accent-600: #4a45e0;
-  --color-accent-700: #3d38c4;
+  /* Единственный акцент — приглушённая терракота */
+  --color-accent-50: #fbf0eb;
+  --color-accent-100: #f5dcd1;
+  --color-accent-200: #ebbaa6;
+  --color-accent-300: #e6906f;
+  --color-accent-500: #c95a37;
+  --color-accent-600: #b4472a;
+  --color-accent-700: #933720;
 
-  --color-ok: #137a58;
-  --color-ok-soft: #e8f6f0;
-  --color-warn: #a35a0b;
-  --color-warn-soft: #fdf3e3;
-  --color-bad: #b83a32;
-  --color-bad-soft: #fcecea;
+  --color-ok: #3f7a4f;
+  --color-ok-soft: #ebf3ec;
+  --color-warn: #9a5b12;
+  --color-warn-soft: #fbf1e1;
+  --color-bad: #a93a2f;
+  --color-bad-soft: #fbebe8;
 
   --radius-card: 12px;
-  --shadow-card: 0 1px 2px rgba(14, 17, 32, 0.04);
-  --shadow-pop: 0 12px 40px -8px rgba(14, 17, 32, 0.18), 0 2px 6px rgba(14, 17, 32, 0.06);
+  --shadow-card: 0 1px 2px rgba(28, 26, 23, 0.05);
+  --shadow-pop: 0 12px 40px -8px rgba(28, 26, 23, 0.2), 0 2px 6px rgba(28, 26, 23, 0.06);
 }
 
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
@@ -39,6 +47,7 @@ body {
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
 h1, h2, h3 { letter-spacing: -0.022em; }
+.font-display { font-family: var(--font-display); font-feature-settings: "ss01"; }
 ::selection { background: var(--color-accent-100); }
 button { cursor: pointer; font: inherit; }
 button:disabled { cursor: not-allowed; }
@@ -61,7 +70,7 @@ textarea, input, select { font: inherit; }
 .ring-anim { animation: ring-in 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
 .bar-anim { transform-origin: left; animation: bar-in 0.7s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
 .skeleton {
-  background: linear-gradient(90deg, #eceef3 25%, #f6f7fa 50%, #eceef3 75%); background-size: 200% 100%;
+  background: linear-gradient(90deg, #ece6dc 25%, #f5f1ea 50%, #ece6dc 75%); background-size: 200% 100%;
   animation: shimmer 1.6s linear infinite; border-radius: 8px;
 }
 .indeterminate { animation: indeterminate 1.3s ease-in-out infinite; }

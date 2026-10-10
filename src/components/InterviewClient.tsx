@@ -75,7 +75,7 @@ export default function InterviewClient() {
           <div>
             <div className="mb-2 flex items-center justify-between text-[13px]"><span className="font-medium">Вопрос <span className="tabular">{i + 1}</span> из <span className="tabular">{total}</span></span>
               {scores.length > 0 && <span className="text-muted">Средний балл: <span className="tabular font-medium text-ink">{avg}</span></span>}</div>
-            <div className="h-1 overflow-hidden rounded-full bg-[#e8eaf0]" role="progressbar" aria-valuenow={i + (fb ? 1 : 0)} aria-valuemin={0} aria-valuemax={total} aria-label="Прогресс тренировки"><div className="h-full rounded-full bg-accent-600 transition-[width] duration-500" style={{ width: `${((i + (fb ? 1 : 0)) / total) * 100}%` }} /></div>
+            <div className="h-1 overflow-hidden rounded-full bg-[#e9e2d8]" role="progressbar" aria-valuenow={i + (fb ? 1 : 0)} aria-valuemin={0} aria-valuemax={total} aria-label="Прогресс тренировки"><div className="h-full rounded-full bg-accent-600 transition-[width] duration-500" style={{ width: `${((i + (fb ? 1 : 0)) / total) * 100}%` }} /></div>
           </div>
 
           <Card key={q.id} className="fade-in sm:p-8">

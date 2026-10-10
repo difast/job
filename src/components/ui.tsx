@@ -12,8 +12,8 @@ export function buttonClass({ variant = 'primary', size = 'md', className }: { v
   return cx(
     'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-50',
     size === 'sm' && 'h-8 px-3 text-[13px]', size === 'md' && 'h-10 px-4 text-sm', size === 'lg' && 'h-11 px-5 text-[15px]',
-    variant === 'primary' && 'bg-accent-600 text-white shadow-[0_1px_2px_rgba(61,56,196,0.35),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-accent-700',
-    variant === 'secondary' && 'border border-line-strong bg-white text-ink hover:border-[#bfc3d1] hover:bg-subtle',
+    variant === 'primary' && 'bg-accent-600 text-white shadow-[0_1px_2px_rgba(147,55,32,0.35),inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-accent-700',
+    variant === 'secondary' && 'border border-line-strong bg-white text-ink hover:border-[#c2b8aa] hover:bg-subtle',
     variant === 'ghost' && 'text-ink-2 hover:bg-subtle hover:text-ink',
     variant === 'danger' && 'border border-line-strong bg-white text-bad hover:border-[#e3b3af] hover:bg-bad-soft',
     className,
@@ -88,16 +88,16 @@ export function Chip({ children }: { children: ReactNode }) {
 }
 
 /* ───────── Оценки ───────── */
-export const scoreColor = (n: number) => (n >= 75 ? '#16966c' : n >= 50 ? '#d98a1c' : '#d4503f');
+export const scoreColor = (n: number) => (n >= 75 ? '#4f8a5e' : n >= 50 ? '#c98a2e' : '#c0533d');
 export const scoreTone = (n: number) => (n >= 75 ? 'text-ok' : n >= 50 ? 'text-warn' : 'text-bad');
 
-export function ScoreRing({ value, size = 132, stroke = 8, suffix = '/ 100', label }: { value: number; size?: number; stroke?: number; suffix?: string; label?: string }) {
+export function ScoreRing({ value, size = 132, stroke = 8, suffix = '/ 100', label, color, track = '#eee8df' }: { value: number; size?: number; stroke?: number; suffix?: string; label?: string; color?: string; track?: string }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, o = c * (1 - value / 100);
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={label ?? `Оценка ${value}`}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#eef0f4" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={scoreColor(value)} strokeWidth={stroke} strokeLinecap="round"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color ?? scoreColor(value)} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={o} className="ring-anim" style={{ ['--ring-c' as string]: c, ['--ring-o' as string]: o }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
@@ -108,12 +108,12 @@ export function ScoreRing({ value, size = 132, stroke = 8, suffix = '/ 100', lab
   );
 }
 
-export function Meter({ label, value }: { label: string; value: number }) {
+export function Meter({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between text-sm"><span className="text-ink-2">{label}</span><span className="tabular font-medium">{value}</span></div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[#eef0f4]" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
-        <div className="bar-anim h-full rounded-full" style={{ width: `${value}%`, background: scoreColor(value) }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-[#eee8df]" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+        <div className="bar-anim h-full rounded-full" style={{ width: `${value}%`, background: color ?? scoreColor(value) }} />
       </div>
     </div>
   );
@@ -140,10 +140,10 @@ export function EngineNote({ engine }: { engine: 'llm' | 'heuristic' }) {
 /* ───────── Сегментный переключатель ───────── */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-[#eceef3] p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-stone p-0.5">
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={cx('h-8 rounded-md px-3.5 text-[13px] font-medium transition-all duration-150', value === o.value ? 'bg-white text-ink shadow-[0_1px_2px_rgba(14,17,32,0.1)]' : 'text-ink-2 hover:text-ink')}>
+          className={cx('h-8 rounded-md px-3.5 text-[13px] font-medium transition-all duration-150', value === o.value ? 'bg-white text-ink shadow-[0_1px_2px_rgba(28,26,23,0.12)]' : 'text-ink-2 hover:text-ink')}>
           {o.label}
         </button>
       ))}
@@ -152,18 +152,18 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
 }
 
 /* ───────── Логотип ───────── */
-export function LogoMark({ size = 28 }: { size?: number }) {
+export function LogoMark({ size = 28, inverted }: { size?: number; inverted?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill="#4a45e0" />
-      <path d="M9 21.5 15 15l3.5 3.5L24 11.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <path d="M19 11.5h5V16.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect width="32" height="32" rx="9" fill={inverted ? '#fbf9f5' : '#1c1a17'} />
+      <path d="M8.5 21.5 14.5 15l3.5 3.5L23.5 12" stroke={inverted ? '#1c1a17' : '#fbf9f5'} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="23.5" cy="12" r="2.6" fill="#c95a37" />
     </svg>
   );
 }
 
-export function Logo({ size = 28, className }: { size?: number; className?: string }) {
-  return <span className={cx('inline-flex items-center gap-2.5 font-semibold tracking-tight', className)}><LogoMark size={size} /><span>Карьерный навигатор</span></span>;
+export function Logo({ size = 28, className, inverted }: { size?: number; className?: string; inverted?: boolean }) {
+  return <span className={cx('font-display inline-flex items-center gap-2.5 font-semibold tracking-tight', className)}><LogoMark size={size} inverted={inverted} /><span>Карьерный навигатор</span></span>;
 }
 
 export const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·';

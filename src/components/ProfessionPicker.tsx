@@ -41,7 +41,7 @@ export default function ProfessionPicker({ value, onChange, maxHeight }: { value
                 const on = value === p.id;
                 return (
                   <button key={p.id} type="button" onClick={() => onChange(p.id, p.name)} title={p.description} aria-pressed={on}
-                    className={cx('inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors', on ? 'border-accent-600 bg-accent-50 font-medium text-accent-700' : 'border-line-strong bg-white text-ink hover:border-[#bfc3d1] hover:bg-subtle')}>
+                    className={cx('inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors', on ? 'border-accent-600 bg-accent-50 font-medium text-accent-700' : 'border-line-strong bg-white text-ink hover:border-[#c2b8aa] hover:bg-subtle')}>
                     {on && <Icon name="check" size={14} strokeWidth={2.2} />}{p.name}
                   </button>
                 );
