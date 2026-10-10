@@ -1,0 +1,37 @@
+// Подписанные запросы Clymly → JobToo: JSON, HMAC-SHA256, тайм-аут 15 с,
+// повтор только при сетевой ошибке и 503 — не больше 2 раз и с тем же X-Request-Id.
+import { randomUUID } from 'node:crypto';
+import { OUTBOUND_TIMEOUT_MS, jobtoo } from './config';
+import { sign } from './signing';
+
+export type PartnerResponse<T> =
+  | { ok: true; status: number; data: T; requestId: string; durationMs: number }
+  | { ok: false; status: number; code: string; message: string | null; requestId: string; durationMs: number };
+
+export async function partnerPost<T = Record<string, unknown>>(op: 'pull' | 'handoff' | 'events', payload: unknown, requestId: string = randomUUID()): Promise<PartnerResponse<T>> {
+  const body = Buffer.from(JSON.stringify(payload));
+  const started = Date.now();
+  let last: PartnerResponse<T> | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
+    const ts = String(Math.floor(Date.now() / 1000));
+    let res: Response;
+    try {
+      res = await fetch(jobtoo.endpoint(op), {
+        method: 'POST', body, redirect: 'error', signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json', 'X-Partner-Id': 'clymly', 'X-Request-Id': requestId, 'X-Timestamp': ts, 'X-Signature': sign(jobtoo.outboundSecret(), ts, requestId, body) },
+      });
+    } catch (e) {
+      const timeout = (e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError';
+      last = { ok: false, status: 0, code: timeout ? 'timeout' : 'network', message: null, requestId, durationMs: Date.now() - started };
+      if (timeout) break; // на тайм-ауте не повторяем: запрос мог быть уже выполнен и код погашен
+      continue;
+    }
+    const data = (await res.json().catch(() => null)) as (T & { status?: string; error?: { code?: string; message?: string } }) | null;
+    if (res.ok && data?.status === 'ok') return { ok: true, status: res.status, data, requestId, durationMs: Date.now() - started };
+    const message = typeof data?.error?.message === 'string' && data.error.message.length < 300 ? data.error.message : null;
+    last = { ok: false, status: res.status, code: String(data?.error?.code ?? `http_${res.status}`).slice(0, 40), message, requestId, durationMs: Date.now() - started };
+    if (res.status !== 503) break;
+  }
+  return last!;
+}

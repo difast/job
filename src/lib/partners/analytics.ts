@@ -23,8 +23,8 @@ export const FUNNEL_OUT: [string, string][] = [
   ['redirect_opened', 'Открыта ссылка'], ['partner_login_completed', 'Вход в JobToo'], ['partner_first_action', 'Первое действие в JobToo'],
 ];
 export const FUNNEL_IN: [string, string][] = [
-  ['handoff_received', 'Запросы от JobToo'], ['handoff_accepted', 'Принято'], ['login_link_opened', 'Открыта ссылка'], ['login_completed', 'Вход в Clymly'],
-  ['account_linked', 'Привязка аккаунта'], ['first_action', 'Первое действие в Clymly'],
+  ['start_opened', 'Открыта страница перехода'], ['inbound_consent_accepted', 'Согласие с условиями Clymly'], ['pull_succeeded', 'Данные получены от JobToo'],
+  ['login_completed', 'Вход в Clymly'], ['account_linked', 'Привязка аккаунта'], ['first_action', 'Первое действие в Clymly'],
 ];
 
 export async function report(f: Filters) {
@@ -33,8 +33,8 @@ export async function report(f: Filters) {
     db.integrationEvent.groupBy({ by: ['direction', 'event'], where: w, _count: { _all: true } }),
     db.integrationEvent.groupBy({ by: ['direction', 'errorCode'], where: { ...w, errorCode: { not: null } }, _count: { _all: true }, orderBy: { _count: { errorCode: 'desc' } }, take: 10 }),
     db.integrationEvent.aggregate({ where: { ...w, direction: 'out', event: { in: ['handoff_succeeded', 'handoff_failed'] } }, _avg: { durationMs: true } }),
-    db.integrationEvent.aggregate({ where: { ...w, direction: 'in', event: 'handoff_accepted' }, _avg: { durationMs: true } }),
-    db.integrationEvent.findMany({ where: { ...w, event: { in: ['button_clicked', 'handoff_succeeded', 'partner_login_completed', 'handoff_accepted', 'login_completed'] } }, select: { createdAt: true, direction: true, event: true }, take: 50_000 }),
+    db.integrationEvent.aggregate({ where: { ...w, direction: 'in', event: { in: ['pull_succeeded', 'pull_failed'] } }, _avg: { durationMs: true } }),
+    db.integrationEvent.findMany({ where: { ...w, event: { in: ['button_clicked', 'handoff_succeeded', 'partner_login_completed', 'pull_succeeded', 'login_completed'] } }, select: { createdAt: true, direction: true, event: true }, take: 50_000 }),
     db.integrationEvent.findMany({ where: { partner: PARTNER, placement: { not: null } }, distinct: ['placement'], select: { placement: true } }),
     db.integrationEvent.findMany({ where: { partner: PARTNER, platform: { not: null } }, distinct: ['platform'], select: { platform: true } }),
   ]);

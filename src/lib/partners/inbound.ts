@@ -1,28 +1,27 @@
-// Приём данных от JobToo: POST /api/partner/v1/handoff
+// JobToo → Clymly по схеме «Clymly забирает сам»:
+// человек открывает /partner/jobtoo/start?code=… → принимает условия Clymly → сервер вызывает
+// POST {JOBTOO_API_URL}?op=pull с кодом и сведениями о согласии и получает профиль и резюме.
 import { randomBytes } from 'node:crypto';
-import { after } from 'next/server';
 import { z } from 'zod';
 import { db } from '../db';
 import { hashPassword } from '../auth';
 import { ApiError } from '../http';
 import { extractResumeText, MAX_FILE_BYTES } from '../extract';
+import { LEGAL_EDITION } from '../legal';
 import { LEVELS } from '../types';
-import { LOGIN_CODE_TTL_MS, PARTNER, jobtoo, siteOrigin } from './config';
-import { verify } from './signing';
-import { allow } from './ratelimit';
+import { LINK_TICKET_TTL_MS, PARTNER, jobtoo } from './config';
+import { CLYMLY_INBOUND_CONSENT_VERSION } from './shared';
+import { partnerPost } from './http';
 import { issueCode } from './codes';
 import { applyImport, type ImportPayload } from './imports';
 import { enqueuePartnerEvent, flushOutbox, track } from './events';
-
-export type ErrorCode = 'invalid_payload' | 'invalid_signature' | 'consent_missing' | 'duplicate_request' | 'file_too_large' | 'unsupported_file' | 'resume_unreadable' | 'rate_limited' | 'unavailable';
-const STATUS: Record<ErrorCode, number> = { invalid_payload: 400, invalid_signature: 401, consent_missing: 403, duplicate_request: 409, file_too_large: 413, unsupported_file: 415, resume_unreadable: 422, rate_limited: 429, unavailable: 503 };
+import { sha256Hex } from './signing';
 
 export class PartnerError extends Error {
-  constructor(public code: ErrorCode, message: string, public retryAfter?: number) { super(message); }
+  constructor(public code: string, message: string, public status = 400, public retryAfter?: number) { super(message); }
 }
-
 export function errorResponse(requestId: string | null, e: PartnerError) {
-  return Response.json({ status: 'error', request_id: requestId, error: { code: e.code, message: e.message }, ...(e.retryAfter ? { retry_after: e.retryAfter } : {}) }, { status: STATUS[e.code] });
+  return Response.json({ status: 'error', request_id: requestId, error: { code: e.code, message: e.message }, ...(e.retryAfter ? { retry_after: e.retryAfter } : {}) }, { status: e.status });
 }
 
 const str = (max: number) => z.string().trim().min(1).max(max);
@@ -34,160 +33,151 @@ const payloadSchema = z.object({
   email_verified: z.boolean(),
   name: str(80),
   phone: z.string().max(40).optional().nullable(), // не сохраняем: Clymly телефон не использует
-  target_position: str(120),
+  target_position: z.string().trim().max(120).optional().nullable(),
   experience_level: z.enum(LEVELS as [string, ...string[]]).optional().nullable(),
   skills: z.array(z.string().max(80)).max(100).optional().nullable(),
-  resume_id: str(100),
+  resume_id: z.string().max(100).optional().nullable(),
+  resume_file: z.object({ name: str(200), mime: z.string().max(120), data_b64: z.string().max(14_000_000) /* размер — после декодирования, с понятной ошибкой */ }).optional().nullable(),
   resume_text: z.string().max(30_000).optional().nullable(),
   vacancy: z.object({
-    id: z.string().max(100).optional().nullable(), title: z.string().max(200).optional().nullable(), company: z.string().max(200).optional().nullable(),
-    description: z.string().max(20_000).optional().nullable(), url: z.string().max(500).optional().nullable(),
+    id: z.string().max(100).optional().nullable(), title: z.string().max(200).optional().nullable(),
+    company: z.string().max(200).optional().nullable(), description: z.string().max(20_000).optional().nullable(),
   }).optional().nullable(),
-  consent: z.object({ accepted_at: z.string().min(10).max(40), version: str(40) }),
   utm: z.object({ placement: z.string().max(40).optional().nullable(), platform: z.string().max(20).optional().nullable() }).optional().nullable(),
 });
+type Payload = z.infer<typeof payloadSchema>;
 
-const fieldList = (p: Record<string, unknown>, hasFile: boolean) => [...Object.keys(p).filter((k) => p[k] !== undefined && p[k] !== null && k !== 'source'), ...(hasFile ? ['resume_file'] : [])];
+const MIME: Record<string, string[]> = {
+  pdf: ['application/pdf'],
+  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  txt: ['text/plain'],
+};
 
-/** vacancy.url принимаем только на домене JobToo. */
-function safeVacancyUrl(u: string | null | undefined) {
-  if (!u) return null;
-  try { return new URL(u).origin === jobtoo.loginOrigin() ? u : null; } catch { return null; }
+/** Файл резюме из pull: тип по расширению, MIME и содержимому должен совпадать. */
+async function resumeFromFile(f: NonNullable<Payload['resume_file']>) {
+  const ext = f.name.toLowerCase().split('.').pop() ?? '';
+  const mime = f.mime.toLowerCase().split(';')[0].trim();
+  if (!MIME[ext] || !MIME[ext].includes(mime)) throw new PartnerError('unsupported_file', 'Резюме в JobToo в неподдерживаемом формате (нужен PDF, DOCX или TXT).', 415);
+  const buf = Buffer.from(f.data_b64, 'base64');
+  if (!buf.length) throw new PartnerError('resume_unreadable', 'Файл резюме пустой.', 422);
+  if (buf.length > MAX_FILE_BYTES) throw new PartnerError('file_too_large', 'Файл резюме больше 5 МБ.', 413);
+  const magic = buf.subarray(0, 4).toString('latin1');
+  if ((ext === 'pdf' && magic !== '%PDF') || (ext === 'docx' && magic !== 'PK\x03\x04')) throw new PartnerError('unsupported_file', 'Содержимое файла резюме не совпадает с его типом.', 415);
+  try {
+    return { fileName: f.name, text: await extractResumeText(f.name, buf) };
+  } catch (e) {
+    throw new PartnerError('resume_unreadable', e instanceof ApiError ? e.message : 'Не удалось прочитать резюме.', 422);
+  }
 }
 
-export async function handleInboundHandoff(req: Request): Promise<Response> {
-  const started = Date.now();
-  const requestIdHeader = req.headers.get('x-request-id');
-  if (!jobtoo.inboundReady()) return errorResponse(requestIdHeader, new PartnerError('unavailable', 'Интеграция временно недоступна', 300));
-  const len = Number(req.headers.get('content-length') ?? 0);
-  if (len > MAX_FILE_BYTES + 200_000) return errorResponse(requestIdHeader, new PartnerError('file_too_large', 'Файл больше 5 МБ'));
-  const raw = Buffer.from(await req.arrayBuffer());
-  if (raw.length > MAX_FILE_BYTES + 200_000) return errorResponse(requestIdHeader, new PartnerError('file_too_large', 'Файл больше 5 МБ'));
+export type AcceptResult =
+  | { kind: 'login'; userId: string; landing: string; created: boolean }
+  | { kind: 'link'; ticket: string };
 
-  const v = verify(jobtoo.inboundSecret(), {
-    partnerId: req.headers.get('x-partner-id'), requestId: requestIdHeader, timestamp: req.headers.get('x-timestamp'), signature: req.headers.get('x-signature'),
-  }, PARTNER, raw);
-  if (!v.ok) {
-    await track({ direction: 'in', event: 'handoff_rejected', errorCode: 'invalid_signature' });
-    return errorResponse(requestIdHeader, new PartnerError('invalid_signature', v.message));
+const USER_MESSAGES: Record<string, string> = {
+  code_expired: 'Ссылка из JobToo устарела или уже использована. Вернитесь в JobToo и нажмите «Перейти в Clymly» ещё раз.',
+  resume_unreadable: 'В JobToo не нашлось резюме, которое можно прочитать. Загрузите резюме в JobToo или прямо в Clymly.',
+  rate_limited: 'Слишком много попыток. Подождите минуту и попробуйте снова.',
+  timeout: 'JobToo не ответил вовремя. Вернитесь в JobToo и попробуйте ещё раз.',
+};
+
+/**
+ * Человек принял условия на странице приёма. Забираем данные у JobToo и определяем аккаунт:
+ * связка → вход; e-mail уже есть → автосвязь только если почта подтверждена и у нас, и в JobToo, иначе привязка после входа владельца;
+ * иначе — новый аккаунт (согласие на обработку дано на странице приёма).
+ */
+export async function acceptInbound(code: string, meta: { placement?: string | null }): Promise<AcceptResult> {
+  if (!jobtoo.inboundReady()) throw new ApiError(503, 'Переход из JobToo временно недоступен');
+  const consentAt = new Date();
+  const res = await partnerPost<{ handoff_request_id?: string; external_user_id?: string; payload?: unknown }>('pull', {
+    code, consent: { accepted_at: consentAt.toISOString(), version: CLYMLY_INBOUND_CONSENT_VERSION },
+  });
+  if (!res.ok) {
+    await track({ direction: 'in', event: 'pull_failed', errorCode: res.code, durationMs: res.durationMs, placement: meta.placement });
+    throw new ApiError(res.status === 410 ? 410 : res.status === 429 ? 429 : 502, USER_MESSAGES[res.code] ?? res.message ?? 'JobToo не смог передать данные. Попробуйте позже.');
   }
-  const requestId = v.requestId;
-  if (!allow(`in:${PARTNER}`, 100)) return errorResponse(requestId, new PartnerError('rate_limited', 'Слишком много запросов', 30));
-
-  // Идемпотентность: тот же request_id → тот же результат (ссылка входа — новая, она одноразовая)
-  const prev = await db.partnerHandoff.findUnique({ where: { partner_direction_requestId: { partner: PARTNER, direction: 'in', requestId } } });
-  if (prev) {
-    if (prev.status === 'processing') return errorResponse(requestId, new PartnerError('duplicate_request', 'Запрос ещё обрабатывается', 5));
-    if (prev.status === 'error' || !prev.result) return errorResponse(requestId, new PartnerError((prev.errorCode as ErrorCode) ?? 'invalid_payload', 'Запрос уже был отклонён'));
-    return reissue(prev.id, requestId, JSON.parse(prev.result));
+  const handoffRequestId = typeof res.data.handoff_request_id === 'string' && /^[\w-]{8,64}$/.test(res.data.handoff_request_id) ? res.data.handoff_request_id : res.requestId;
+  const parsed = payloadSchema.safeParse(res.data.payload);
+  if (!parsed.success) {
+    await track({ direction: 'in', event: 'pull_failed', requestId: handoffRequestId, errorCode: 'invalid_payload', durationMs: res.durationMs });
+    throw new ApiError(502, 'JobToo передал данные в неожиданном формате. Мы уже знаем о проблеме — попробуйте позже.');
   }
+  const p = parsed.data;
+  const placement = p.utm?.placement ?? meta.placement ?? null, platform = p.utm?.platform ?? null;
+  const fields = Object.keys(p).filter((k) => (p as Record<string, unknown>)[k] != null && k !== 'source');
 
-  let handoffId: string | null = null;
-  const fail = async (e: PartnerError, extra: { externalUserId?: string } = {}) => {
-    if (handoffId) await db.partnerHandoff.update({ where: { id: handoffId }, data: { status: 'error', errorCode: e.code, durationMs: Date.now() - started } });
-    await track({ direction: 'in', event: 'handoff_rejected', requestId, partnerUserId: extra.externalUserId ?? null, errorCode: e.code });
-    return errorResponse(requestId, e);
+  // Журнал перехода (без содержимого). request_id — идентификатор перехода у JobToo, по нему сопоставляются события.
+  const existingHandoff = await db.partnerHandoff.findUnique({ where: { partner_direction_requestId: { partner: PARTNER, direction: 'in', requestId: handoffRequestId } } });
+  if (existingHandoff) throw new ApiError(410, USER_MESSAGES.code_expired);
+  const h = await db.partnerHandoff.create({ data: { partner: PARTNER, direction: 'in', requestId: handoffRequestId, externalUserId: p.jobtoo_user_id, status: 'processing', fields: JSON.stringify(fields), placement, platform } });
+  const fail = async (e: PartnerError) => {
+    await db.partnerHandoff.update({ where: { id: h.id }, data: { status: 'error', errorCode: e.code, durationMs: res.durationMs } });
+    await track({ direction: 'in', event: 'pull_failed', requestId: handoffRequestId, partnerUserId: p.jobtoo_user_id, errorCode: e.code, placement, platform });
+    throw new ApiError(e.status, e.message);
+  };
+  await track({ direction: 'in', event: 'pull_succeeded', requestId: handoffRequestId, partnerUserId: p.jobtoo_user_id, placement, platform, durationMs: res.durationMs });
+
+  // Резюме: файл приоритетнее текста; если файл не читается, но есть текст — берём текст
+  let resume: ImportPayload['resume'] = null;
+  if (p.resume_file) {
+    try { resume = await resumeFromFile(p.resume_file); }
+    catch (e) { if (!(e instanceof PartnerError)) throw e; if (!p.resume_text || p.resume_text.trim().length < 80) return fail(e); }
+  }
+  if (!resume && p.resume_text && p.resume_text.trim().length >= 80) resume = { fileName: 'Резюме из JobToo.txt', text: p.resume_text.trim() };
+  if (!resume) return fail(new PartnerError('resume_unreadable', USER_MESSAGES.resume_unreadable, 422));
+
+  const importPayload: ImportPayload = {
+    externalUserId: p.jobtoo_user_id, email: p.email, emailVerified: p.email_verified, name: p.name,
+    targetPosition: p.target_position ?? '', level: (p.experience_level as ImportPayload['level']) ?? null, resume,
+    vacancy: p.vacancy?.description ? { title: p.vacancy.title ?? null, company: p.vacancy.company ?? null, description: p.vacancy.description, url: null } : null,
   };
 
-  try {
-    const form = await new Request('http://local', { method: 'POST', headers: { 'content-type': req.headers.get('content-type') ?? '' }, body: raw }).formData().catch(() => null);
-    const rawPayload = form?.get('payload');
-    if (typeof rawPayload !== 'string') return fail(new PartnerError('invalid_payload', 'Нет поля payload (JSON)'));
-    let json: unknown;
-    try { json = JSON.parse(rawPayload); } catch { return fail(new PartnerError('invalid_payload', 'payload — некорректный JSON')); }
-    if (json && typeof json === 'object' && !('consent' in json)) return fail(new PartnerError('consent_missing', 'Нет согласия пользователя на передачу данных'));
-    const parsed = payloadSchema.safeParse(json);
-    if (!parsed.success) return fail(new PartnerError('invalid_payload', 'Некорректные поля: ' + parsed.error.issues.map((i) => i.path.join('.') || i.message).slice(0, 5).join(', ')));
-    const p = parsed.data;
-    const file = form?.get('resume_file');
-    const hasFile = file instanceof File && file.size > 0;
-
-    await track({ direction: 'in', event: 'handoff_received', requestId, partnerUserId: p.jobtoo_user_id, placement: p.utm?.placement, platform: p.utm?.platform });
-    if (!allow(`in:${PARTNER}:user:${p.jobtoo_user_id}`, 10)) return fail(new PartnerError('rate_limited', 'Слишком много запросов для этого пользователя', 60), { externalUserId: p.jobtoo_user_id });
-
-    const h = await db.partnerHandoff.create({ data: {
-      partner: PARTNER, direction: 'in', requestId, externalUserId: p.jobtoo_user_id, status: 'processing',
-      fields: JSON.stringify(fieldList(p, hasFile)), placement: p.utm?.placement?.slice(0, 40), platform: p.utm?.platform?.slice(0, 20),
-    } }).catch(() => null);
-    if (!h) return errorResponse(requestId, new PartnerError('duplicate_request', 'Запрос ещё обрабатывается', 5));
-    handoffId = h.id;
-
-    // Резюме: файл приоритетнее текста
-    let resume: ImportPayload['resume'] = null;
-    if (hasFile) {
-      const f = file as File;
-      if (f.size > MAX_FILE_BYTES) return fail(new PartnerError('file_too_large', 'Файл больше 5 МБ'), { externalUserId: p.jobtoo_user_id });
-      if (!/\.(pdf|docx|txt)$/i.test(f.name)) return fail(new PartnerError('unsupported_file', 'Поддерживаются PDF, DOCX и TXT'), { externalUserId: p.jobtoo_user_id });
-      try {
-        resume = { fileName: f.name.slice(0, 200), text: await extractResumeText(f.name, Buffer.from(await f.arrayBuffer())) };
-      } catch (e) {
-        const code: ErrorCode = e instanceof ApiError && e.status === 413 ? 'file_too_large' : e instanceof ApiError && e.status === 400 ? 'unsupported_file' : 'resume_unreadable';
-        return fail(new PartnerError(code, e instanceof ApiError ? e.message : 'Не удалось прочитать файл'), { externalUserId: p.jobtoo_user_id });
-      }
-    } else if (p.resume_text && p.resume_text.trim().length >= 80) {
-      resume = { fileName: 'Резюме из JobToo.txt', text: p.resume_text.trim() };
-    } else if (p.resume_text) {
-      return fail(new PartnerError('resume_unreadable', 'В резюме слишком мало текста'), { externalUserId: p.jobtoo_user_id });
-    } else {
-      return fail(new PartnerError('invalid_payload', 'Нужен resume_file или resume_text'), { externalUserId: p.jobtoo_user_id });
-    }
-
-    const importPayload: ImportPayload = {
-      externalUserId: p.jobtoo_user_id, email: p.email, emailVerified: p.email_verified, name: p.name, targetPosition: p.target_position, level: (p.experience_level as ImportPayload['level']) ?? null, resume,
-      vacancy: p.vacancy?.description ? { title: p.vacancy.title ?? null, company: p.vacancy.company ?? null, description: p.vacancy.description, url: safeVacancyUrl(p.vacancy.url) } : null,
-    };
-
-    // Аккаунт: связка → найден; e-mail занят → связываем сами, только если почту подтвердили обе стороны,
-    // иначе — только после входа владельца; иначе — новый аккаунт
-    const link = await db.partnerLink.findUnique({ where: { partner_externalUserId: { partner: PARTNER, externalUserId: p.jobtoo_user_id } } });
-    const existing = link ? null : await db.user.findUnique({ where: { email: p.email } });
-    let account: 'found' | 'created' | 'link_required';
-    let userId: string | null = null;
-    let autoLinked = false;
-    if (link) {
-      account = 'found'; userId = link.userId;
-    } else if (existing) {
-      const busy = await db.partnerLink.findUnique({ where: { partner_userId: { partner: PARTNER, userId: existing.id } } });
-      if (existing.emailVerifiedAt && p.email_verified === true && !busy) {
-        // Почта подтверждена и в Clymly, и в JobToo — это один владелец. Существующую связь не перезаписываем.
-        await db.partnerLink.create({ data: { partner: PARTNER, userId: existing.id, externalUserId: p.jobtoo_user_id } });
-        account = 'found'; userId = existing.id; autoLinked = true;
-      } else {
-        account = 'link_required';
-      }
-    } else {
-      account = 'created';
-      const u = await db.user.create({ data: { email: p.email, name: p.name, passwordHash: await hashPassword(randomBytes(24).toString('hex')), hasPassword: false, source: PARTNER } });
-      await db.partnerLink.create({ data: { partner: PARTNER, userId: u.id, externalUserId: p.jobtoo_user_id } });
-      userId = u.id;
-    }
-    if (userId) await db.partnerLink.update({ where: { partner_userId: { partner: PARTNER, userId } }, data: { lastInboundRequestId: requestId } });
-
-    const imp = await db.partnerImport.create({ data: { partner: PARTNER, handoffId: h.id, userId, payload: JSON.stringify(importPayload) } });
-    const result = { external_user_id: userId ?? `pending:${h.id}`, account, importId: imp.id, userId };
-    await db.partnerHandoff.update({ where: { id: h.id }, data: { status: 'ok', account, userId, result: JSON.stringify(result), durationMs: Date.now() - started } });
-    if (autoLinked) {
-      await track({ direction: 'in', event: 'account_linked', requestId, userId, partnerUserId: p.jobtoo_user_id, account: 'auto' });
-      await enqueuePartnerEvent('account_linked', requestId, p.jobtoo_user_id);
-      void flushOutbox();
-    }
-    await track({ direction: 'in', event: 'handoff_accepted', requestId, userId, partnerUserId: p.jobtoo_user_id, account, placement: p.utm?.placement, platform: p.utm?.platform, durationMs: Date.now() - started });
-
-    // Анализ резюме и вакансии — после ответа партнёру, чтобы уложиться в его тайм-аут
-    if (userId) after(async () => { try { await applyImport(imp.id, userId!); } catch (e) { console.warn('[integration] import failed', e); } });
-    return reissue(h.id, requestId, result);
-  } catch (e) {
-    console.error('[integration] inbound failed', e);
-    return fail(new PartnerError('unavailable', 'Временная ошибка, повторите запрос', 30));
+  const link = await db.partnerLink.findUnique({ where: { partner_externalUserId: { partner: PARTNER, externalUserId: p.jobtoo_user_id } } });
+  const existing = link ? null : await db.user.findUnique({ where: { email: p.email } });
+  let account: 'found' | 'created' | 'link_required';
+  let userId: string | null = null;
+  let autoLinked = false;
+  if (link) {
+    account = 'found'; userId = link.userId;
+  } else if (existing) {
+    const busy = await db.partnerLink.findUnique({ where: { partner_userId: { partner: PARTNER, userId: existing.id } } });
+    if (existing.emailVerifiedAt && p.email_verified === true && !busy) {
+      await db.partnerLink.create({ data: { partner: PARTNER, userId: existing.id, externalUserId: p.jobtoo_user_id } });
+      account = 'found'; userId = existing.id; autoLinked = true;
+    } else account = 'link_required';
+  } else {
+    account = 'created';
+    const u = await db.user.create({ data: {
+      email: p.email, name: p.name, passwordHash: await hashPassword(randomBytes(24).toString('hex')), hasPassword: false, source: PARTNER,
+      pdConsentAt: consentAt, pdConsentVer: LEGAL_EDITION, // согласие дано на странице приёма перехода
+    } });
+    await db.partnerLink.create({ data: { partner: PARTNER, userId: u.id, externalUserId: p.jobtoo_user_id } });
+    userId = u.id;
   }
+
+  const imp = await db.partnerImport.create({ data: { partner: PARTNER, handoffId: h.id, userId, payload: JSON.stringify(importPayload) } });
+  await db.partnerHandoff.update({ where: { id: h.id }, data: { status: 'ok', account, userId, result: JSON.stringify({ account }), durationMs: res.durationMs } });
+  await track({ direction: 'in', event: 'handoff_accepted', requestId: handoffRequestId, userId, partnerUserId: p.jobtoo_user_id, account, placement, platform });
+  if (autoLinked) await track({ direction: 'in', event: 'account_linked', requestId: handoffRequestId, userId, partnerUserId: p.jobtoo_user_id, account: 'auto' });
+
+  if (account === 'link_required') {
+    const ticket = await issueCode('link_ticket', LINK_TICKET_TTL_MS, { importId: imp.id, requestId: handoffRequestId });
+    return { kind: 'link', ticket };
+  }
+  await db.partnerLink.update({ where: { partner_userId: { partner: PARTNER, userId: userId! } }, data: { lastInboundRequestId: handoffRequestId } });
+  let landing = '/dashboard';
+  try { landing = (await applyImport(imp.id, userId!)).landing; } catch (e) { console.warn('[integration] import failed', e); }
+  await track({ direction: 'in', event: 'login_completed', requestId: handoffRequestId, userId, partnerUserId: p.jobtoo_user_id, placement, platform });
+  await enqueuePartnerEvent('login_completed', handoffRequestId, p.jobtoo_user_id);
+  void flushOutbox();
+  return { kind: 'login', userId: userId!, landing, created: account === 'created' };
 }
 
-/** Выдаёт новую одноразовую ссылку входа для результата обработки. */
-async function reissue(handoffId: string, requestId: string, r: { external_user_id: string; account: string; importId: string; userId: string | null }) {
-  const purpose = r.account === 'link_required' ? 'link' : 'login';
-  const code = await issueCode(purpose, LOGIN_CODE_TTL_MS, { userId: r.userId, importId: r.importId, requestId });
-  return Response.json({
-    status: 'ok', request_id: requestId, external_user_id: r.external_user_id, account: r.account,
-    login_url: `${siteOrigin()}/sso/jobtoo?code=${code}`, expires_at: new Date(Date.now() + LOGIN_CODE_TTL_MS).toISOString(),
-  });
+/** Человек отказался от условий Clymly: данные не запрашиваем, код у JobToo сгорит сам. */
+export async function declineInbound(code: string, meta: { placement?: string | null }) {
+  // handoff_request_id до pull неизвестен — JobToo сопоставляет событие по sha256 кода (см. docs/partner-api-v1.md)
+  const ref = sha256Hex(code);
+  await track({ direction: 'in', event: 'inbound_consent_declined', placement: meta.placement });
+  await enqueuePartnerEvent('consent_declined', ref, null);
+  void flushOutbox();
 }

@@ -20,9 +20,10 @@ test('подпись запросов партнёра: верная прохо�
 });
 
 test('ссылка входа от JobToo: только домен партнёра и https', async () => {
-  process.env.JOBTOO_API_BASE = 'https://api.jobtoo.example';
+  process.env.JOBTOO_API_URL = 'https://jobtoo.example/api/partner.php';
   process.env.JOBTOO_LOGIN_ORIGIN = 'https://jobtoo.example';
-  const { isPartnerLoginUrl } = await import('../src/lib/partners/config');
+  const { isPartnerLoginUrl, jobtoo } = await import('../src/lib/partners/config');
+  assert.equal(jobtoo.endpoint('pull'), 'https://jobtoo.example/api/partner.php?op=pull', 'адрес операции API JobToo');
   assert.equal(isPartnerLoginUrl('https://jobtoo.example/sso/clymly?code=abc'), true);
   assert.equal(isPartnerLoginUrl('http://jobtoo.example/sso/clymly?code=abc'), false, 'http');
   assert.equal(isPartnerLoginUrl('https://jobtoo.example.evil.com/sso'), false, 'похожий домен');

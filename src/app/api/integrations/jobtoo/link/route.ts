@@ -53,7 +53,6 @@ export const POST = handler(async (req: Request) => {
   else await db.partnerLink.update({ where: { id: mine.id }, data: { lastInboundRequestId: ticket.requestId } });
   await db.partnerHandoff.updateMany({ where: { partner: PARTNER, direction: 'in', requestId: ticket.requestId }, data: { userId: user.id } });
   await track({ direction: 'in', event: 'account_linked', requestId: ticket.requestId, userId: user.id, partnerUserId: externalUserId });
-  await enqueuePartnerEvent('account_linked', ticket.requestId, externalUserId);
   await enqueuePartnerEvent('login_completed', ticket.requestId, externalUserId);
   void flushOutbox();
   const { landing } = await applyImport(imp.id, user.id);

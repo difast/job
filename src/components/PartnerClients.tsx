@@ -61,3 +61,44 @@ export function SwitchAccount() {
   }
   return <Button size="lg" className="mt-6 w-full" disabled={busy} onClick={go} data-testid="link-switch">{busy && <Spinner />}Выйти и войти в другой аккаунт</Button>;
 }
+
+/** Страница приёма перехода из JobToo: согласие → сервер забирает данные у JobToo → вход. */
+export function InboundConsent() {
+  const router = useRouter();
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
+  const [error, setError] = useState('');
+  const [declined, setDeclined] = useState(false);
+  async function accept() {
+    if (busy) return;
+    setBusy('accept'); setError('');
+    const r = await request<{ landing: string }>('/api/partner/jobtoo/accept', { method: 'POST', json: { consent: true }, timeoutMs: 60_000 });
+    if (!r.ok) { setBusy(null); setError(r.error); return; }
+    router.push(safeNext(r.data.landing) ?? '/dashboard'); router.refresh();
+  }
+  async function decline() {
+    if (busy) return;
+    setBusy('decline');
+    await request('/api/partner/jobtoo/decline', { method: 'POST', timeoutMs: 15_000 });
+    setBusy(null); setDeclined(true);
+  }
+  if (declined) {
+    return (
+      <div className="mt-6" data-testid="inbound-declined">
+        <Alert tone="info">Данные из JobToo не переданы. Можно закрыть эту вкладку и вернуться в JobToo.</Alert>
+        <Link href="/" className="mt-4 inline-block text-sm font-medium text-accent-600 hover:text-accent-700">На главную Clymly</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 space-y-4">
+      <label className="flex items-start gap-3 rounded-lg border border-line bg-canvas p-3.5 text-[13px] leading-relaxed text-ink-2">
+        <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent-600)]" data-testid="inbound-consent" />
+        <span>Даю <Link href="/consent" target="_blank" className="font-medium text-ink underline underline-offset-2">согласие на обработку персональных данных</Link>, в том числе полученных от JobToo, принимаю <Link href="/terms" target="_blank" className="underline underline-offset-2">Пользовательское соглашение</Link> и ознакомлен(а) с <Link href="/privacy" target="_blank" className="underline underline-offset-2">Политикой конфиденциальности</Link></span>
+      </label>
+      {error && <Alert>{error}</Alert>}
+      <Button size="lg" className="w-full" disabled={!checked || !!busy} onClick={accept} data-testid="inbound-accept">{busy === 'accept' ? <><Spinner />Получаем профиль и резюме…</> : 'Продолжить'}</Button>
+      <Button size="lg" variant="ghost" className="w-full" disabled={!!busy} onClick={decline} data-testid="inbound-decline">{busy === 'decline' && <Spinner />}Отказаться</Button>
+    </div>
+  );
+}

@@ -4,7 +4,7 @@ import { db } from '../db';
 import { PARTNER } from './config';
 import { sha256Hex } from './signing';
 
-export type CodePurpose = 'login' | 'link' | 'link_ticket';
+export type CodePurpose = 'link_ticket';
 
 export async function issueCode(purpose: CodePurpose, ttlMs: number, data: { userId?: string | null; importId?: string | null; requestId: string; next?: string | null }) {
   const code = randomBytes(32).toString('base64url');

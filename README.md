@@ -53,8 +53,8 @@ src/app/(app)         dashboard, резюме,          src/lib          auth, d
 
 ## Интеграция с JobToo
 * Формат обмена (v1, одинаковый в обе стороны) и адреса Clymly — `docs/partner-api-v1.md`. Код — `src/lib/partners/*`.
-* Включается `JOBTOO_INTEGRATION_ENABLED=1` + `JOBTOO_API_BASE` + `JOBTOO_OUTBOUND_SECRET` + `JOBTOO_INBOUND_SECRET` (см. `.env.example`). Без них кнопки скрыты, приём отвечает 503.
-* JobToo → Clymly: `POST /api/partner/v1/handoff` → одноразовая ссылка `/sso/jobtoo?code=…` (2 минуты, один раз). Существующий e-mail — только через вход владельца и привязку (`/link/jobtoo`).
+* Включается `JOBTOO_INTEGRATION_ENABLED=1` + `JOBTOO_API_URL` + `JOBTOO_LOGIN_ORIGIN` + `JOBTOO_OUTBOUND_SECRET` + `JOBTOO_INBOUND_SECRET` (см. `.env.example`). Без них кнопки скрыты, переходы недоступны.
+* JobToo → Clymly («Clymly забирает сам»): JobToo открывает `/partner/jobtoo/start?code=…` → человек принимает условия Clymly → сервер вызывает `POST {JOBTOO_API_URL}?op=pull` и получает профиль и резюме. Существующий e-mail — автосвязь при подтверждённой почте с обеих сторон, иначе вход владельца и привязка (`/link/jobtoo`).
 * Clymly → JobToo: кнопка «Перейти в JobToo» (главная, «Моё резюме», адаптация) с окном согласия.
 * Аналитика переходов — `IntegrationEvent`, отчёт `/admin/integrations` (доступ по `ADMIN_EMAILS`), обмен событиями — `POST /api/partner/v1/events`.
 
@@ -66,7 +66,7 @@ BASE_URL=http://localhost:3100 npm run e2e       # сквозной сценар
 BASE_URL=http://localhost:3100 npm run ui-check  # сценарий в реальном Chromium + скриншоты, mobile/tablet
 # сертификат тестового SMTP: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/smtp-key.pem -out /tmp/smtp-cert.pem -days 30 -subj /CN=localhost -addext subjectAltName=DNS:localhost
 # сервер дополнительно: NODE_EXTRA_CA_CERTS=/tmp/smtp-cert.pem SMTP_HOST=localhost SMTP_PORT=465 SMTP_USER=mailer SMTP_PASSWORD=mailer-pass SMTP_FROM=no-reply@clymly.ru; тест: SMTP_CERT=/tmp/smtp-cert.pem SMTP_KEY=/tmp/smtp-key.pem
-# интеграция с JobToo: сервер с JOBTOO_INTEGRATION_ENABLED=1 JOBTOO_API_BASE=http://localhost:4100 JOBTOO_OUTBOUND_SECRET=test-out JOBTOO_INBOUND_SECRET=test-in ADMIN_EMAILS=admin_e2e@example.com
+# интеграция с JobToo: сервер с JOBTOO_INTEGRATION_ENABLED=1 JOBTOO_API_URL=http://localhost:4100/api/partner.php JOBTOO_OUTBOUND_SECRET=test-out JOBTOO_INBOUND_SECRET=test-in ADMIN_EMAILS=admin_e2e@example.com
 ADMIN=admin_e2e@example.com BASE_URL=http://localhost:3100 node scripts/partner-e2e.mjs   # заглушка JobToo поднимается сама на :4100
 JOBTOO=1 BASE_URL=http://localhost:3100 npm run ui-check                                # + сценарий G «Перейти в JobToo»
 ```

@@ -6,7 +6,7 @@ import { PageHeader, buttonClass, cx } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
-const LABELS: Record<string, string> = { 'out:button_clicked': 'Клики «Перейти в JobToo»', 'out:handoff_succeeded': 'Передано в JobToo', 'out:partner_login_completed': 'Вошли в JobToo', 'in:handoff_accepted': 'Принято от JobToo', 'in:login_completed': 'Вошли в Clymly' };
+const LABELS: Record<string, string> = { 'out:button_clicked': 'Клики «Перейти в JobToo»', 'out:handoff_succeeded': 'Передано в JobToo', 'out:partner_login_completed': 'Вошли в JobToo', 'in:pull_succeeded': 'Получено от JobToo', 'in:login_completed': 'Вошли в Clymly' };
 
 function Funnel({ title, steps }: { title: string; steps: { event: string; label: string; n: number; conv: number | null }[] }) {
   const max = Math.max(1, ...steps.map((s) => s.n));
@@ -57,7 +57,7 @@ export default async function IntegrationsAdmin({ searchParams }: { searchParams
           <h2 className="text-[17px] font-semibold tracking-tight">Время ответа</h2>
           <dl className="mt-3 grid grid-cols-2 gap-4 text-sm">
             <div><dt className="text-muted">JobToo на наши передачи</dt><dd className="tabular mt-1 text-xl font-semibold">{r.avgOutMs ? `${r.avgOutMs} мс` : '—'}</dd></div>
-            <div><dt className="text-muted">Clymly на передачи JobToo</dt><dd className="tabular mt-1 text-xl font-semibold">{r.avgInMs ? `${r.avgInMs} мс` : '—'}</dd></div>
+            <div><dt className="text-muted">JobToo на наши запросы pull</dt><dd className="tabular mt-1 text-xl font-semibold">{r.avgInMs ? `${r.avgInMs} мс` : '—'}</dd></div>
           </dl>
         </section>
         <section className="rounded-2xl border border-line bg-white p-5 sm:p-6">

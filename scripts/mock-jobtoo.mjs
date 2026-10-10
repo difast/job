@@ -1,10 +1,10 @@
-// Тестовая заглушка JobToo: принимает подписанные запросы Clymly (handoff, events) и умеет отвечать
-// успехом, ошибкой или ссылкой на чужой домен. Используется в scripts/partner-e2e.mjs и ui-check.
+// Тестовая заглушка JobToo по их протоколу v1: единый адрес /api/partner.php?op=pull|handoff|events, JSON, подпись HMAC.
+// pull — Clymly забирает профиль по коду перехода; handoff — Clymly присылает профиль; events — события Clymly.
 import { createServer } from 'node:http';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 export function startMockJobToo({ port = 4100, secret }) {
-  const state = { mode: 'ok', handoffs: [], events: [], badSignatures: 0 };
+  const state = { mode: 'ok', handoffs: [], events: [], pulls: [], badSignatures: 0, codes: new Map() };
   const sha = (b) => createHash('sha256').update(b).digest('hex');
   const valid = (req, body) => {
     const ts = req.headers['x-timestamp'], rid = req.headers['x-request-id'], sig = req.headers['x-signature'];
@@ -13,29 +13,45 @@ export function startMockJobToo({ port = 4100, secret }) {
     const got = Buffer.from(String(sig), 'hex');
     return exp.length === got.length && timingSafeEqual(exp, got);
   };
+  /** Человек нажал «Перейти в Clymly»: заглушка выдаёт одноразовый код (15 минут) для payload. */
+  const issueCode = (payload, { ttlMs = 15 * 60_000, status = 200, error = null } = {}) => {
+    const code = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
+    state.codes.set(code, { payload, expires: Date.now() + ttlMs, used: false, status, error, handoffRequestId: randomUUID() });
+    return code;
+  };
   const server = createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
     const send = (status, obj, type = 'application/json') => { res.writeHead(status, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(obj) : obj); };
+    const url = new URL(req.url, 'http://x');
     const rid = req.headers['x-request-id'];
-    if (req.url === '/api/partner/v1/handoff' && req.method === 'POST') {
+    if (url.pathname === '/api/partner.php' && req.method === 'POST') {
+      if (req.headers['content-type'] !== 'application/json') return send(400, { status: 'error', request_id: rid, error: { code: 'invalid_payload', message: 'нужен JSON' } });
       if (!valid(req, body)) { state.badSignatures++; return send(401, { status: 'error', request_id: rid, error: { code: 'invalid_signature', message: 'bad signature' } }); }
-      const form = await new Request('http://x', { method: 'POST', headers: { 'content-type': req.headers['content-type'] }, body }).formData();
-      const payload = JSON.parse(form.get('payload'));
-      state.handoffs.push({ requestId: rid, payload });
-      if (state.mode === 'error') return send(422, { status: 'error', request_id: rid, error: { code: 'resume_unreadable', message: 'JobToo: не удалось разобрать резюме' } });
-      if (state.mode === 'slow') await new Promise((r) => setTimeout(r, 17_000));
-      const url = state.mode === 'foreign' ? 'https://evil.example/login?code=x' : `http://localhost:${port}/sso/clymly?code=mock-${rid}`;
-      return send(200, { status: 'ok', request_id: rid, external_user_id: `jt_${payload.clymly_user_id}`, account: 'created', login_url: url, expires_at: new Date(Date.now() + 120_000).toISOString() });
+      const data = JSON.parse(body.toString());
+      const op = url.searchParams.get('op');
+      if (op === 'pull') {
+        state.pulls.push({ requestId: rid, body: data });
+        const c = state.codes.get(data.code);
+        if (!data.consent?.accepted_at || !data.consent?.version) return send(403, { status: 'error', request_id: rid, error: { code: 'consent_missing', message: 'нет согласия' } });
+        if (!c || c.used || c.expires < Date.now()) return send(410, { status: 'error', request_id: rid, error: { code: 'code_expired', message: 'код просрочен' } });
+        c.used = true;
+        if (c.status !== 200) return send(c.status, { status: 'error', request_id: rid, error: c.error });
+        return send(200, { status: 'ok', request_id: rid, handoff_request_id: c.handoffRequestId, external_user_id: c.payload?.jobtoo_user_id ?? '', payload: c.payload });
+      }
+      if (op === 'handoff') {
+        state.handoffs.push({ requestId: rid, payload: data });
+        if (state.mode === 'error') return send(422, { status: 'error', request_id: rid, error: { code: 'resume_unreadable', message: 'JobToo: не удалось разобрать резюме' } });
+        const login = state.mode === 'foreign' ? 'https://evil.example/login?code=x' : `http://localhost:${port}/sso/clymly?code=mock-${rid}`;
+        const created = state.mode === 'created';
+        return send(200, { status: 'ok', request_id: rid, external_user_id: created ? '' : `jt_${data.clymly_user_id}`, account: created ? 'created' : 'found', login_url: login, expires_at: new Date(Date.now() + 120_000).toISOString() });
+      }
+      if (op === 'events') { state.events.push(...data.events); return send(200, { status: 'ok', request_id: rid }); }
+      return send(400, { status: 'error', request_id: rid, error: { code: 'invalid_payload', message: 'unknown op' } });
     }
-    if (req.url === '/api/partner/v1/events' && req.method === 'POST') {
-      if (!valid(req, body)) { state.badSignatures++; return send(401, { status: 'error' }); }
-      state.events.push(...JSON.parse(body.toString()).events);
-      return send(200, { status: 'ok', request_id: rid, accepted: 1 });
-    }
-    if (req.url === '/favicon.ico') { res.writeHead(204); return res.end(); }
-    if (req.url?.startsWith('/sso/clymly')) return send(200, '<!doctype html><title>JobToo</title><h1>JobToo: вы вошли</h1>', 'text/html; charset=utf-8');
+    if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
+    if (url.pathname.startsWith('/sso/clymly')) return send(200, '<!doctype html><title>JobToo</title><h1>JobToo: вы вошли</h1>', 'text/html; charset=utf-8');
     send(404, { status: 'error' });
   });
-  return new Promise((resolve) => server.listen(port, () => resolve({ state, close: () => new Promise((r) => server.close(r)) })));
+  return new Promise((resolve) => server.listen(port, () => resolve({ state, issueCode, handoffRequestId: (code) => state.codes.get(code)?.handoffRequestId, close: () => new Promise((r) => server.close(r)) })));
 }

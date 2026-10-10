@@ -18,5 +18,16 @@ export const JOBTOO_CONSENT_TEXT = {
   revoke: 'Отозвать согласие и отвязать аккаунт можно в разделе «Настройки → Интеграции». Данные, уже переданные в JobToo, обрабатываются по правилам JobToo.',
 };
 
+/** Версия текста согласия на странице приёма перехода из JobToo (получение данных от JobToo). */
+export const CLYMLY_INBOUND_CONSENT_VERSION = '2026-10-10';
+
+/** Что Clymly получит от JobToo — показывается на странице приёма. */
+export const JOBTOO_INBOUND_FIELDS = [
+  'Имя и e-mail (и признак, подтверждена ли почта в JobToo)',
+  'Желаемая должность и навыки',
+  'Резюме — файл или текст',
+  'Вакансия, если вы переходите с карточки отклика',
+] as const;
+
 export const JOBTOO_PLACEMENTS = ['dashboard', 'resume', 'adaptation', 'settings'] as const;
 export type JobTooPlacement = (typeof JOBTOO_PLACEMENTS)[number];

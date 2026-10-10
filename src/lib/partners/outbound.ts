@@ -6,8 +6,8 @@ import { applyChanges } from '../changes';
 import { latestResume } from '../context';
 import { norm } from '../text';
 import { parseJson, type Change } from '../types';
-import { API_PATH, JOBTOO_CONSENT_VERSION, OUTBOUND_TIMEOUT_MS, PARTNER, PARTNER_NAME, isPartnerLoginUrl, jobtoo } from './config';
-import { sign } from './signing';
+import { JOBTOO_CONSENT_VERSION, PARTNER, PARTNER_NAME, isPartnerLoginUrl, jobtoo } from './config';
+import { partnerPost } from './http';
 import { allow } from './ratelimit';
 import { track } from './events';
 
@@ -49,15 +49,9 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
   };
   const fields = Object.entries(payload).filter(([k, v]) => v !== null && !['source', 'utm', 'consent'].includes(k) && !(Array.isArray(v) && !v.length)).map(([k]) => k);
 
-  const fd = new FormData();
-  fd.set('payload', JSON.stringify(payload));
-  const serialized = new Request('http://local', { method: 'POST', body: fd });
-  const body = Buffer.from(await serialized.arrayBuffer());
-  const contentType = serialized.headers.get('content-type')!;
-  const requestId = randomUUID();
-  const ts = String(Math.floor(Date.now() / 1000));
   const started = Date.now();
-  const h = await db.partnerHandoff.create({ data: { partner: PARTNER, direction: 'out', requestId, userId: user.id, externalUserId: link?.externalUserId, status: 'processing', fields: JSON.stringify(fields), placement: opts.placement, platform: opts.platform ?? 'web' } });
+  const h = await db.partnerHandoff.create({ data: { partner: PARTNER, direction: 'out', requestId: randomUUID(), userId: user.id, externalUserId: link?.externalUserId, status: 'processing', fields: JSON.stringify(fields), placement: opts.placement, platform: opts.platform ?? 'web' } });
+  const requestId = h.requestId;
   await track({ direction: 'out', event: 'handoff_sent', requestId, userId: user.id, partnerUserId: link?.externalUserId, placement: opts.placement, platform: opts.platform ?? 'web' });
 
   const failed = async (code: string, message: string, status = 502) => {
@@ -67,28 +61,20 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
     throw new ApiError(status, message);
   };
 
-  let res: Response;
-  try {
-    res = await fetch(`${jobtoo.apiBase()}${API_PATH}/handoff`, {
-      method: 'POST', body, signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS), redirect: 'error',
-      headers: { 'Content-Type': contentType, 'X-Partner-Id': 'clymly', 'X-Request-Id': requestId, 'X-Timestamp': ts, 'X-Signature': sign(jobtoo.outboundSecret(), ts, requestId, body) },
-    });
-  } catch (e) {
-    const timeout = (e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError';
-    return failed(timeout ? 'timeout' : 'network', timeout ? 'JobToo не ответил вовремя. Попробуйте ещё раз.' : 'Не удалось связаться с JobToo. Попробуйте ещё раз.', 504);
+  const res = await partnerPost<{ external_user_id?: string; account?: string; login_url?: string; expires_at?: string }>('handoff', payload, requestId);
+  if (!res.ok) {
+    if (res.code === 'timeout') return failed('timeout', 'JobToo не ответил вовремя. Попробуйте ещё раз.', 504);
+    if (res.code === 'network') return failed('network', 'Не удалось связаться с JobToo. Попробуйте ещё раз.', 504);
+    return failed(res.code, res.message ?? 'JobToo не смог принять данные. Попробуйте позже.', res.status === 429 ? 429 : 502);
   }
-  const data = (await res.json().catch(() => null)) as null | { status?: string; error?: { code?: string; message?: string }; external_user_id?: string; account?: string; login_url?: string; expires_at?: string };
-  if (!res.ok || data?.status !== 'ok') {
-    const code = (data?.error?.code ?? `http_${res.status}`).slice(0, 40);
-    const msg = typeof data?.error?.message === 'string' && data.error.message.length < 300 ? data.error.message : 'JobToo не смог принять данные. Попробуйте позже.';
-    return failed(code, msg, res.status === 429 ? 429 : 502);
-  }
+  const data = res.data;
   const expires = Date.parse(data.expires_at ?? '');
   if (!isPartnerLoginUrl(data.login_url) || !Number.isFinite(expires) || expires < Date.now()) return failed('invalid_response', 'JobToo вернул некорректную ссылку для входа. Переход отменён.');
 
   const account = ['created', 'found', 'link_required'].includes(data.account ?? '') ? data.account! : null;
-  const externalUserId = typeof data.external_user_id === 'string' && data.external_user_id.length <= 100 ? data.external_user_id : null;
-  if (externalUserId && !externalUserId.startsWith('pending:') && account !== 'link_required') {
+  // При created JobToo возвращает пустой external_user_id, пока аккаунт не создан, — такую связку не сохраняем
+  const externalUserId = typeof data.external_user_id === 'string' && data.external_user_id.trim() && data.external_user_id.length <= 100 ? data.external_user_id : null;
+  if (externalUserId && account === 'found') {
     await db.partnerLink.upsert({
       where: { partner_userId: { partner: PARTNER, userId: user.id } },
       update: { externalUserId }, create: { partner: PARTNER, userId: user.id, externalUserId },

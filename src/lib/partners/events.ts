@@ -1,9 +1,8 @@
 // Аналитика переходов и обмен событиями с партнёром.
 // В IntegrationEvent и в очередь не попадают персональные данные, ссылки и коды входа.
-import { randomUUID } from 'node:crypto';
 import { db } from '../db';
-import { API_PATH, OUTBOUND_TIMEOUT_MS, PARTNER, jobtoo } from './config';
-import { sign } from './signing';
+import { PARTNER, jobtoo } from './config';
+import { partnerPost } from './http';
 
 export type Direction = 'out' | 'in';
 
@@ -19,8 +18,8 @@ export async function track(e: EventData) {
   } catch (err) { console.warn('[integration] event not saved', err); }
 }
 
-/** События, которые мы сообщаем партнёру о его переходах к нам (direction=in у нас). */
-export type OutgoingEvent = 'login_completed' | 'account_linked' | 'first_action';
+/** События, которые мы сообщаем JobToo о его переходах к нам: вход выполнен / человек отказался от условий Clymly. */
+export type OutgoingEvent = 'login_completed' | 'consent_declined';
 
 export async function enqueuePartnerEvent(event: OutgoingEvent, requestId: string, partnerUserId: string | null) {
   try {
@@ -37,17 +36,7 @@ export async function flushOutbox() {
   try {
     const batch = await db.partnerEventOutbox.findMany({ where: { sentAt: null, nextAt: { lte: new Date() }, attempts: { lt: 10 } }, orderBy: { createdAt: 'asc' }, take: 50 });
     if (!batch.length) return;
-    const body = JSON.stringify({ events: batch.map((b) => JSON.parse(b.body)) });
-    const requestId = randomUUID();
-    const ts = String(Math.floor(Date.now() / 1000));
-    let ok = false;
-    try {
-      const res = await fetch(`${jobtoo.apiBase()}${API_PATH}/events`, {
-        method: 'POST', signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS), body,
-        headers: { 'Content-Type': 'application/json', 'X-Partner-Id': 'clymly', 'X-Request-Id': requestId, 'X-Timestamp': ts, 'X-Signature': sign(jobtoo.outboundSecret(), ts, requestId, body) },
-      });
-      ok = res.ok;
-    } catch { ok = false; }
+    const ok = (await partnerPost('events', { events: batch.map((b) => JSON.parse(b.body)) })).ok;
     const ids = batch.map((b) => b.id);
     if (ok) await db.partnerEventOutbox.updateMany({ where: { id: { in: ids } }, data: { sentAt: new Date() } });
     else for (const b of batch) await db.partnerEventOutbox.update({ where: { id: b.id }, data: { attempts: { increment: 1 }, nextAt: new Date(Date.now() + Math.min(60, 2 ** b.attempts) * 60_000) } });
@@ -55,7 +44,7 @@ export async function flushOutbox() {
   finally { flushing = false; }
 }
 
-/** Первое целевое действие пользователя, пришедшего из JobToo: сообщаем партнёру один раз. */
+/** Первое целевое действие пользователя, пришедшего из JobToo (в аналитику Clymly, один раз). */
 export async function trackFirstAction(userId: string) {
   try {
     const link = await db.partnerLink.findFirst({ where: { userId, partner: PARTNER, firstActionAt: null, lastInboundRequestId: { not: null } } });
@@ -63,7 +52,5 @@ export async function trackFirstAction(userId: string) {
     const upd = await db.partnerLink.updateMany({ where: { id: link.id, firstActionAt: null }, data: { firstActionAt: new Date() } });
     if (!upd.count) return;
     await track({ direction: 'in', event: 'first_action', requestId: link.lastInboundRequestId, userId, partnerUserId: link.externalUserId });
-    await enqueuePartnerEvent('first_action', link.lastInboundRequestId!, link.externalUserId);
-    void flushOutbox();
   } catch (err) { console.warn('[integration] first_action failed', err); }
 }

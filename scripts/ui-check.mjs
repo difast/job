@@ -286,6 +286,26 @@ if (process.env.JOBTOO === '1') {
     }
     await c.close();
   }
+  // JobToo → Clymly: страница приёма перехода в браузере (desktop и mobile)
+  for (const [w, h, label] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
+    const c = await browser.newContext({ viewport: { width: w, height: h } });
+    const p = await c.newPage(); watch(p);
+    const em = `ui_in_${label}_${Date.now()}@example.com`;
+    const code = mock.issueCode({ source: 'jobtoo', jobtoo_user_id: `ui-${label}-${Date.now()}`, email: em, email_verified: true, name: 'Ирина Входящая', target_position: 'Продакт-менеджер', experience_level: 'middle',
+      resume_file: { name: 'cv.pdf', mime: 'application/pdf', data_b64: readFileSync('tests/fixtures/resume.pdf').toString('base64') },
+      vacancy: { id: 'v1', title: 'Продуктовый менеджер', company: 'ФинПлюс', description: readFileSync('tests/fixtures/vacancy.txt', 'utf8') } });
+    await p.goto(`${BASE}/partner/jobtoo/start?code=${code}`);
+    await p.waitForURL('**/partner/jobtoo');
+    ok(!p.url().includes('code='), `${label}: код убран из адресной строки`);
+    ok(await p.getByTestId('inbound-accept').isDisabled(), `${label}: без согласия «Продолжить» неактивна`);
+    await shot(`G3-inbound-${label}`, label === 'mobile', p);
+    ok(!(await overflow(p)), `${label}: страница перехода без горизонтального скролла`);
+    await p.getByTestId('inbound-consent').check();
+    await p.getByTestId('inbound-accept').click();
+    await p.waitForURL('**/vacancies/**', { timeout: 30_000 });
+    ok(await p.locator('[data-testid=match-score]').isVisible(), `${label}: после согласия — сразу анализ вакансии из JobToo`);
+    await c.close();
+  }
   mock.state.mode = 'error';
   { const c = await browser.newContext({ storageState: await ctx.storageState() }); const p = await c.newPage();
     await p.goto(BASE + '/dashboard'); await p.getByTestId('jobtoo-dashboard').click();
