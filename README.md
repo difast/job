@@ -3,7 +3,7 @@
 MVP SaaS-платформы подготовки к поиску работы. Центральная сущность — **профессия пользователя**: выбрав профессию и уровень, пользователь получает анализ резюме, адаптацию под вакансию, сопроводительное письмо и тренажёр собеседования, настроенные под эту профессию.
 
 ## Стек
-Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · шрифт Inter (локально, @fontsource) · Prisma 6 + SQLite · собственная cookie-сессия (bcrypt, токен хранится хэшем) · pdf-parse / mammoth (PDF/DOCX → текст) · pdfkit (экспорт PDF) · Anthropic SDK (опционально).
+Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · шрифт Inter (локально, @fontsource) · Prisma 6 + PostgreSQL · собственная cookie-сессия (bcrypt, токен хранится хэшем) · pdf-parse / mammoth (PDF/DOCX → текст) · pdfkit (экспорт PDF) · Anthropic SDK (опционально).
 
 ## Что внутри
 * **Лендинг** (`/`) — hero с превью продукта, «Как это работает», возможности, профессии, финальный CTA, футер; `/terms` и `/privacy` — страницы-заглушки.
@@ -17,7 +17,7 @@ Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · шриф�
 ## Запуск
 ```bash
 npm install
-cp .env.example .env          # DATABASE_URL, (опц.) ANTHROPIC_API_KEY
+cp .env.example .env          # DATABASE_URL (PostgreSQL), (опц.) ANTHROPIC_API_KEY
 npm run db:setup              # создаёт БД и наполняет справочники (профессии, вопросы)
 npm run dev                   # http://localhost:3000
 ```
@@ -58,4 +58,4 @@ BASE_URL=http://localhost:3100 npm run ui-check  # сценарий в реал�
 LinkedIn и трекер откликов не реализованы.
 
 ## Деплой (Timeweb Cloud Apps)
-Фреймворк Next.js, команда сборки `npm run build`, директория сборки `.next`, команда запуска `npm run start:prod`, проверка состояния `GET /api/health`. SSR должен быть включён. Поле системных зависимостей — пустое. Без `DATABASE_URL` используется `file:./prod.db` (SQLite стирается при новом деплое — для продакшена подключите PostgreSQL или постоянный диск).
+Фреймворк Next.js, команда сборки `npm run build`, директория сборки `.next`, команда запуска `npm run start:prod`, проверка состояния `GET /api/health`. SSR должен быть включён. Поле системных зависимостей — пустое. Обязательна переменная `DATABASE_URL` — строка подключения к PostgreSQL 16+ (`postgresql://user:pass@host:5432/db?sslmode=require`). При каждом старте `start:prod` синхронизирует схему (`prisma db push`, без удаления данных) и обновляет справочники профессий и вопросов; данные пользователей не затрагиваются.
