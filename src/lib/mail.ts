@@ -3,6 +3,7 @@
 //   SMTP_HOST=smtp.example.ru   SMTP_PORT=465   SMTP_USER=…   SMTP_PASSWORD=…   SMTP_FROM="Clymly <no-reply@clymly.ru>"
 import nodemailer, { type Transporter } from 'nodemailer';
 import { BRAND } from './brand';
+import { COMPANY } from './legal';
 
 const env = (k: string) => (process.env[k] ?? '').trim();
 
@@ -31,7 +32,9 @@ export async function sendMail(m: Mail): Promise<{ sent: boolean }> {
     if (process.env.NODE_ENV !== 'production') console.info(`[mail] SMTP не настроен. Письмо «${m.subject}» для ${m.to}:\n${m.text}`);
     return { sent: false };
   }
-  await transport().sendMail({ from: env('SMTP_FROM'), to: m.to, subject: m.subject, text: m.text, html: m.html, headers: { 'X-Mailer': BRAND.name } });
+  // Ответы на служебные письма уходят в поддержку
+  const replyTo = env('SMTP_REPLY_TO') || COMPANY.email || undefined;
+  await transport().sendMail({ from: env('SMTP_FROM'), to: m.to, replyTo, subject: m.subject, text: m.text, html: m.html, headers: { 'X-Mailer': BRAND.name } });
   return { sent: true };
 }
 

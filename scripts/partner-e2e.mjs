@@ -83,6 +83,7 @@ section('Подтверждение e-mail (SMTP, порт 465, TLS)');
   const m = await mailFor(em);
   ok(!!m && m.authed && smtp.state.authFailures === 0, 'после регистрации письмо отправлено по SMTP с TLS и авторизацией');
   ok(m && /Subject: =\?UTF-8|Subject: Подтвердите/i.test(m.raw) && /no-reply@clymly\.ru/.test(m.raw), 'тема и отправитель письма');
+  ok(m && /Reply-To: support@clymly\.ru/i.test(m.raw), 'ответы на письмо уходят на support@clymly.ru');
   const link = m && verifyLink(m.raw);
   ok(!!link && link.startsWith('/verify-email?token='), 'в письме ссылка подтверждения');
   let pg = await (await c.req('/dashboard')).text();

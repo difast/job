@@ -18,7 +18,7 @@ export async function sendVerification(user: { id: string; email: string; name: 
     title: 'Подтвердите e-mail',
     intro: `${user.name.split(' ')[0]}, подтвердите, что адрес ${user.email} принадлежит вам. Это защищает аккаунт и позволяет связывать его с сервисами-партнёрами без пароля.`,
     button: 'Подтвердить e-mail', url,
-    outro: 'Ссылка действует 24 часа. Если вы не регистрировались в Clymly, просто проигнорируйте письмо.',
+    outro: 'Ссылка действует 24 часа. Если вы не регистрировались в Clymly, просто проигнорируйте письмо. Вопросы — support@clymly.ru.',
   });
   try {
     return await sendMail({ to: user.email, subject: 'Подтвердите e-mail в Clymly', html, text });

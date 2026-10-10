@@ -42,7 +42,7 @@ for (const [p, must] of Object.entries(docChecks)) {
   const t = (await (await req(p)).text()).replace(/[\u00a0\u202f]/g, ' ');
   const miss = [...REQ, ...must].filter((x) => !t.includes(x));
   ok(miss.length === 0, `документ ${p}: реквизиты и обязательные разделы${miss.length ? ' — нет: ' + miss.join(', ') : ''}`);
-  ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(t.replace(/you@example\.com/g, '')), `документ ${p}: адрес почты не указан (будет добавлен позже)`);
+  ok(t.includes('support@clymly.ru') && !/@(?!clymly\.ru)[a-z0-9-]+\.[a-z]{2,}/i.test(t.replace(/you@example\.com/g, '')), `документ ${p}: почта поддержки support@clymly.ru, других адресов нет`);
 }
 html = await (await req('/')).text();
 ok(html.includes('ИНН 9734021152') && html.includes('href="/consent"') && html.includes('href="/terms"') && html.includes('href="/privacy"'), 'футер: реквизиты и ссылки на все три документа');

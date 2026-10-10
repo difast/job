@@ -111,6 +111,9 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
           </div>
         </Row>
       )}
+      <Row title="Поддержка" hint="Вопросы по работе сервиса, оплате и персональным данным.">
+        <a href="mailto:support@clymly.ru" className="font-medium text-accent-600 hover:text-accent-700" data-testid="support-email">support@clymly.ru</a>
+      </Row>
     </div>
   );
 }
