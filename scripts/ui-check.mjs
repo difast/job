@@ -59,7 +59,7 @@ ok(true, 'онбординг: профессия → уровень → каби
 ok((await page.textContent('[data-testid=target-profession]')) === 'Продакт-менеджер' && (await page.textContent('[data-testid=target-level]')) === 'Middle', 'верхняя панель: цель видна (профессия и уровень)');
 await page.waitForSelector('[data-testid=progress]');
 ok(await page.locator('text=Начните с резюме').isVisible() && await page.getByRole('button', { name: 'Загрузить резюме' }).isVisible(), 'главная: очевидно, как загрузить резюме (единственный CTA)');
-ok(await page.locator('[data-testid=progress]').isVisible() && (await page.locator('[data-testid=progress] a').count()) === 0, 'главная: прогресс подготовки без дублирующих ссылок на разделы');
+ok(await page.locator('[data-testid=progress]').isVisible() && (await page.locator('[data-testid=progress] a').count()) === 5, 'главная: прогресс подготовки — 5 кликабельных шагов');
 {
   const tabs = await page.locator('header nav[aria-label="Основное меню"] a').evaluateAll((els) => els.map((e) => e.innerText.trim()));
   ok(JSON.stringify(tabs) === JSON.stringify(['Главная', 'Моё резюме', 'Вакансии', 'Письма', 'Собеседования']), `верхние вкладки: ${tabs.join(' · ')}`);
@@ -185,6 +185,16 @@ ok(true, 'Back/Forward браузера работают между ваканс
 section('Цель, настройки, оплата');
 await page.goto(BASE + '/dashboard');
 ok((await page.textContent('[data-testid=next-step]')).includes('Всё готово к отклику'), 'главная: путь пройден — следующий шаг обновился');
+await page.locator('[data-testid=progress-row]', { hasText: 'Адаптация резюме' }).click();
+await page.waitForURL('**/adapt');
+await page.waitForSelector('[data-testid=accepted-count]');
+ok(true, 'прогресс: «Адаптация резюме» открывает адаптацию последней вакансии');
+await page.goBack(); await page.waitForURL('**/dashboard');
+await page.waitForSelector('[data-testid=progress-row]');
+await page.locator('[data-testid=progress-row]', { hasText: 'Тренировки собеседования' }).click();
+await page.waitForURL('**/interview?vacancy=**');
+ok(true, 'прогресс: «Тренировки собеседования» открывает тренажёр по последней вакансии');
+await page.goto(BASE + '/dashboard');
 await page.click('header button[aria-label^="Цель:"]');
 await page.waitForSelector('[role=dialog]');
 await shot('F1-goal-dialog', false);

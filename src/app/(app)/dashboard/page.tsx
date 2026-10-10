@@ -49,13 +49,15 @@ export default async function Dashboard() {
     : attempts === 0 ? { step: 5, icon: 'mic', title: 'Потренируйтесь перед собеседованием', text: `Вопросы для «${profession}», уровень ${LEVEL_SHORT[user.level as LevelKey]}. Ответьте — разберём ответ по ключевым пунктам.`, href: `/interview?vacancy=${lastVacancy.id}`, cta: 'Начать тренировку' }
     : { step: 5, icon: 'briefcase', title: 'Всё готово к отклику', text: 'Проанализируйте следующую вакансию или продолжите тренировку собеседования.', href: '/vacancies', cta: 'Добавить вакансию' };
 
-  // Прогресс подготовки — только статусы, без ссылок: переход между разделами — в основном меню, действие — в «Следующем шаге»
-  const path: { icon: IconName; label: string; value: string; done: boolean }[] = [
-    { icon: 'file', label: 'Резюме', value: a ? `${a.score} / 100` : 'не загружено', done: !!a },
-    { icon: 'search', label: 'Анализ вакансий', value: vacancies ? String(vacancies) : '—', done: vacancies > 0 },
-    { icon: 'layers', label: 'Адаптация резюме', value: adaptations ? String(adaptations) : '—', done: adaptations > 0 },
-    { icon: 'mail', label: 'Сопроводительные письма', value: letters ? String(letters) : '—', done: letters > 0 },
-    { icon: 'mic', label: 'Тренировки собеседования', value: attempts ? plural(attempts, 'ответ', 'ответа', 'ответов') : '—', done: attempts > 0 },
+  // Прогресс подготовки: каждый шаг ведёт к конкретному результату или следующему действию по последней вакансии
+  // (адаптация, письмо, тренировка по вакансии), а не просто в раздел — общие разделы остаются в основном меню
+  const lv = lastVacancy;
+  const path: { href: string; icon: IconName; label: string; value: string; done: boolean }[] = [
+    { href: '/resume', icon: 'file', label: 'Резюме', value: a ? `${a.score} / 100` : 'не загружено', done: !!a },
+    { href: lv ? `/vacancies/${lv.id}` : '/vacancies', icon: 'search', label: 'Анализ вакансий', value: vacancies ? String(vacancies) : '—', done: vacancies > 0 },
+    { href: lv?.adaptation ? `/vacancies/${lv.id}/adapt` : lv ? `/vacancies/${lv.id}` : '/vacancies', icon: 'layers', label: 'Адаптация резюме', value: adaptations ? String(adaptations) : '—', done: adaptations > 0 },
+    { href: lv ? `/cover-letter?vacancy=${lv.id}` : '/cover-letter', icon: 'mail', label: 'Сопроводительные письма', value: letters ? String(letters) : '—', done: letters > 0 },
+    { href: lv ? `/interview?vacancy=${lv.id}` : '/interview', icon: 'mic', label: 'Тренировки собеседования', value: attempts ? plural(attempts, 'ответ', 'ответа', 'ответов') : '—', done: attempts > 0 },
   ];
 
   return (
@@ -73,19 +75,22 @@ export default async function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8">
         {/* Левая колонка: путь и статусы — как список разделов со счётчиками */}
         <aside className="order-2 space-y-4 lg:order-1">
-          <section aria-labelledby="progress-h" className="rounded-2xl border border-line bg-white px-5 py-4" data-testid="progress">
-            <div className="flex items-baseline justify-between gap-3">
+          <section aria-labelledby="progress-h" className="rounded-2xl border border-line bg-white p-2.5" data-testid="progress">
+            <div className="flex items-baseline justify-between gap-3 px-3 pb-1 pt-2">
               <h2 id="progress-h" className="font-sans text-[13px] font-medium text-muted" style={{ letterSpacing: 0 }}>Прогресс подготовки</h2>
               <span className="tabular text-[13px] text-muted">{path.filter((p) => p.done).length} из {path.length}</span>
             </div>
-            <ol className="mt-2">
+            <ol>
               {path.map((p) => (
-                <li key={p.label} className="flex h-10 items-center gap-3" data-testid="progress-row">
-                  <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', p.done ? 'bg-ink text-milk' : 'bg-stone text-muted')} aria-hidden="true">
-                    <Icon name={p.done ? 'check' : p.icon} size={p.done ? 13 : 13} strokeWidth={p.done ? 2.4 : 1.7} />
-                  </span>
-                  <span className={cx('min-w-0 flex-1 truncate text-sm', p.done ? 'text-ink' : 'text-ink-2')}>{p.label}<span className="sr-only">{p.done ? ' — выполнено' : ' — ещё не начато'}</span></span>
-                  <span className={cx('tabular shrink-0 text-[13px]', p.done ? 'font-medium text-ink' : 'text-muted')}>{p.value}</span>
+                <li key={p.label}>
+                  <Link href={p.href} className="group flex h-11 items-center gap-3 rounded-xl px-3 transition-colors hover:bg-subtle" data-testid="progress-row" aria-label={`${p.label}: ${p.done ? 'выполнено' : 'ещё не начато'}, ${p.value === '—' ? 'нет' : p.value}`}>
+                    <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', p.done ? 'bg-ink text-milk' : 'bg-stone text-muted')} aria-hidden="true">
+                      <Icon name={p.done ? 'check' : p.icon} size={13} strokeWidth={p.done ? 2.4 : 1.7} />
+                    </span>
+                    <span className={cx('min-w-0 flex-1 truncate text-sm', p.done ? 'text-ink' : 'text-ink-2')}>{p.label}</span>
+                    <span className={cx('tabular shrink-0 text-[13px]', p.done ? 'font-medium text-ink' : 'text-muted')}>{p.value}</span>
+                    <Icon name="chevron-right" size={14} className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                  </Link>
                 </li>
               ))}
             </ol>

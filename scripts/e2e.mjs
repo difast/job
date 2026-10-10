@@ -102,9 +102,9 @@ let page = await (await req('/dashboard')).text();
 ok(page.includes('Ваша цель') && page.includes('Продакт-менеджер') && page.includes('Middle') && page.includes('Изменить цель'), 'на дашборде и в меню видны цель (профессия и уровень) и кнопка «Изменить цель»');
 ok(page.includes('Начните с резюме') && page.includes('Загрузите резюме, чтобы получить персональный анализ и рекомендации.') && page.includes('Загрузить резюме'), 'empty state дашборда без резюме');
 for (const t of ['Главная', 'Моё резюме', 'Вакансии', 'Сопроводительные письма', 'Собеседования']) ok(page.includes(t), `верхнее меню: ${t}`);
-ok(page.includes('href="/interview"') && (page.match(/href="\/interview"/g) ?? []).length <= 2, 'Собеседования — в основном меню, ссылка не дублируется в боковой панели');
+ok(page.includes('href="/interview"'), 'Собеседования — в основном меню');
 for (const t of ['Прогресс подготовки', 'Резюме', 'Анализ вакансий', 'Адаптация резюме', 'Сопроводительные письма', 'Тренировки собеседования']) ok(page.includes(t), `прогресс подготовки: ${t}`);
-ok(page.includes('не загружено') && !page.includes('data-testid="path-row"'), 'прогресс: статус резюме «не загружено», без дублирующих ссылок на разделы');
+ok(page.includes('не загружено') && (page.match(/data-testid="progress-row"/g) ?? []).length === 5, 'прогресс: 5 кликабельных шагов, статус резюме «не загружено»');
 
 // Загрузка резюме
 async function upload(name, type, bytes) {
