@@ -47,7 +47,7 @@ export default function SettingsClient({ name, email, professionName, level, tie
           <label htmlFor="name" className="block text-sm font-medium">Имя</label>
           <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
             <input id="name" value={n} onChange={(e) => setN(e.target.value)} className="h-10 w-full max-w-sm rounded-lg border border-line-strong px-3.5 text-[15px] outline-none focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]" />
-            <Button type="submit" variant="dark" disabled={busy || !n.trim() || n.trim() === name}>{busy && <Spinner />}Сохранить</Button>
+            <Button type="submit" disabled={busy || !n.trim() || n.trim() === name}>{busy && <Spinner />}Сохранить</Button>
           </div>
           {error && <Alert className="mt-3">{error}</Alert>}
         </form>

@@ -6,6 +6,8 @@ import { relativeDay } from '@/lib/format';
 import { PageHeader, cx, scoreTone } from '@/components/ui';
 import Icon from '@/components/Icon';
 import VacancyForm from '@/components/VacancyForm';
+import { JobTooCard } from '@/components/JobTooButton';
+import { jobtooButtonState } from '@/lib/partners/state';
 
 const STEPS = ['Вставьте описание', 'Сравним с резюме', 'Адаптируем резюме'];
 
@@ -15,9 +17,10 @@ export default async function VacanciesPage() {
     latestResume(user.id),
     db.vacancy.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, include: { adaptation: { select: { id: true } } } }),
   ]);
+  const jt = resume ? await jobtooButtonState(user.id) : null;
   return (
     <>
-      <PageHeader title="Анализ вакансии" subtitle="Покажем, насколько вы соответствуете требованиям, и подскажем, как усилить резюме без выдуманных фактов." />
+      <PageHeader title="Вакансии" subtitle="Вставьте описание вакансии — покажем, насколько вы соответствуете требованиям, и подскажем, как усилить резюме без выдуманных фактов." />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <div className="min-w-0">
           <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-[13px] text-ink-2" aria-label="Как это работает">
@@ -31,7 +34,7 @@ export default async function VacanciesPage() {
           <VacancyForm hasResume={!!resume} />
         </div>
 
-        <aside aria-labelledby="hist" className="lg:sticky lg:top-24 lg:self-start">
+        <aside aria-labelledby="hist" className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-2xl border border-line bg-white">
             <h2 id="hist" className="border-b border-line px-5 py-4 text-[17px] font-semibold tracking-[-0.01em]">Ваши вакансии{vacancies.length > 0 && <span className="tabular ml-2 font-sans text-sm font-normal text-muted">{vacancies.length}</span>}</h2>
             {vacancies.length === 0 ? (
@@ -53,6 +56,7 @@ export default async function VacanciesPage() {
               </ul>
             )}
           </div>
+          {jt && <JobTooCard placement="vacancies" state={jt} />}
         </aside>
       </div>
     </>

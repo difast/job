@@ -57,9 +57,14 @@ await page.click('button:has-text("Перейти в кабинет")');
 await page.waitForURL('**/dashboard');
 ok(true, 'онбординг: профессия → уровень → кабинет');
 ok((await page.textContent('[data-testid=target-profession]')) === 'Продакт-менеджер' && (await page.textContent('[data-testid=target-level]')) === 'Middle', 'верхняя панель: цель видна (профессия и уровень)');
-await page.waitForSelector('nav[aria-label="Ваш путь"]');
+await page.waitForSelector('[data-testid=progress]');
 ok(await page.locator('text=Начните с резюме').isVisible() && await page.getByRole('button', { name: 'Загрузить резюме' }).isVisible(), 'главная: очевидно, как загрузить резюме (единственный CTA)');
-ok(await page.locator('nav[aria-label="Ваш путь"]').isVisible(), 'главная: панель «Ваш путь» со статусами');
+ok(await page.locator('[data-testid=progress]').isVisible() && (await page.locator('[data-testid=progress] a').count()) === 0, 'главная: прогресс подготовки без дублирующих ссылок на разделы');
+{
+  const tabs = await page.locator('header nav[aria-label="Основное меню"] a').evaluateAll((els) => els.map((e) => e.innerText.trim()));
+  ok(JSON.stringify(tabs) === JSON.stringify(['Главная', 'Моё резюме', 'Вакансии', 'Письма', 'Собеседования']), `верхние вкладки: ${tabs.join(' · ')}`);
+  ok(await page.locator('header [data-testid=nav-dashboard][aria-current=page]').isVisible(), 'активная вкладка отмечена');
+}
 const dark = await logoColors(page, 'header');
 ok(dark && dark.y1 === 'rgb(230, 144, 111)' && dark.y2 === 'rgb(211, 156, 149)' && dark.text === 'rgb(251, 249, 245)', `тёмный фон (кабинет): светлые варианты фирменных цветов (${JSON.stringify(dark)})`);
 await shot('A1-dashboard-empty');
@@ -134,11 +139,18 @@ await shot('D1-letter');
 
 /* ───────── E. Собеседование ───────── */
 section('E. Собеседование');
-await page.goto(BASE + '/interview');
-await page.waitForSelector('[data-testid=question-text]');
+await page.locator('header [data-testid=nav-interview]').click();
+await page.waitForURL('**/interview');
+await page.waitForSelector('[data-testid=interview-setup]');
+ok(await page.locator('header [data-testid=nav-interview][aria-current=page]').isVisible(), 'Собеседования — основная вкладка, активна');
+ok(await page.getByTestId('interview-vacancy').isVisible(), 'стартовый экран: тип, вакансия, начало тренировки');
+await page.getByTestId('interview-vacancy').selectOption({ index: 1 });
+ok(await page.getByTestId('vacancy-focus').isVisible(), 'выбор вакансии показывает, что подготовить');
+await shot('E0-interview-setup');
 await page.getByRole('radio', { name: 'Профессиональное' }).click();
+await page.getByTestId('start-training').click();
 await page.waitForFunction(() => /Как вы определяете приоритеты|MVP|метрик/.test(document.querySelector('[data-testid=question-text]')?.textContent ?? ''));
-ok(true, 'выбор типа интервью меняет вопросы');
+ok((await page.textContent('[data-testid=training-bar]')).includes('по вакансии'), 'тренировка: тип и вакансия видны, профессиональные вопросы');
 await page.getByRole('button', { name: 'Пример сильного ответа' }).click();
 ok(await page.locator('[data-testid=hint]').isVisible(), 'пример сильного ответа доступен до ответа');
 await shot('E1-interview');
@@ -153,11 +165,21 @@ await page.getByRole('button', { name: /Следующий вопрос|Заве
 await page.waitForFunction((q) => document.querySelector('[data-testid=question-text]')?.textContent !== q, q1);
 ok(true, 'переход к следующему вопросу');
 await page.fill('#answer', 'Черновик ответа, который не должен пропасть');
-await page.getByRole('radio', { name: 'HR' }).click();
-ok(await page.locator('[role=dialog]:has-text("Сменить тип собеседования?")').isVisible(), 'смена типа при начатой тренировке спрашивает подтверждение');
+await page.getByRole('button', { name: 'Сменить параметры' }).first().click();
+ok(await page.locator('[role=dialog]:has-text("Сменить параметры тренировки?")').isVisible(), 'смена параметров при начатой тренировке спрашивает подтверждение');
 await page.click('[role=dialog] button:has-text("Отмена")');
 ok((await page.inputValue('#answer')).includes('Черновик'), 'после отмены ответ сохранён');
 await page.fill('#answer', '');
+
+// Контекст вакансии, история результатов, Back/Forward
+await page.goto(vacancyUrl);
+await page.getByTestId('interview-for-vacancy').click();
+await page.waitForURL('**/interview?vacancy=**');
+ok((await page.getByTestId('interview-vacancy').inputValue()) === new URL(vacancyUrl).pathname.split('/').pop(), 'из вакансии — тренажёр с выбранной вакансией');
+ok(await page.getByTestId('interview-history').isVisible(), 'результаты прошлых ответов доступны на стартовом экране');
+await page.goBack(); await page.waitForURL(vacancyUrl);
+await page.goForward(); await page.waitForURL('**/interview?vacancy=**');
+ok(true, 'Back/Forward браузера работают между вакансией и тренажёром');
 
 /* ───────── Цель, настройки, оплата ───────── */
 section('Цель, настройки, оплата');
@@ -260,6 +282,13 @@ if (process.env.JOBTOO === '1') {
     const c = await browser.newContext({ viewport: { width: w, height: h }, storageState: await ctx.storageState() });
     const p = await c.newPage(); watch(p);
     await p.goto(BASE + '/resume');
+    if (label === 'desktop') {
+      await p.goto(BASE + new URL(vacancyUrl).pathname + '/adapt');
+      ok((await p.getByTestId('jobtoo-adaptation').textContent()).includes('Откликнуться через JobToo'), 'адаптация: «Откликнуться через JobToo»');
+      await p.goto(BASE + '/dashboard');
+      ok((await p.locator('[data-testid^=jobtoo-]').filter({ hasText: 'JobToo' }).count()) >= 1 && (await p.getByTestId('jobtoo-dashboard').textContent()).includes('Перейти к вакансиям в JobToo'), 'главная: «Перейти к вакансиям в JobToo»');
+      await p.goto(BASE + '/resume');
+    }
     const btn = p.getByTestId('jobtoo-resume');
     ok(await btn.waitFor({ timeout: 8000 }).then(() => true, () => false), `${label}: кнопка «Перейти в JobToo» в «Моём резюме»`);
     if (label === 'desktop') {

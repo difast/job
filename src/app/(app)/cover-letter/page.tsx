@@ -13,7 +13,7 @@ export default async function CoverLetterPage({ searchParams }: { searchParams: 
   });
   return (
     <>
-      <PageHeader title="Сопроводительное письмо" subtitle="Выберите вакансию и стиль, затем нажмите «Создать письмо» — оно учтёт ваше резюме, профессию и уровень." />
+      <PageHeader title="Сопроводительные письма" subtitle="Выберите вакансию и стиль, затем нажмите «Создать письмо» — оно учтёт ваше резюме, профессию и уровень." />
       {vacancies.length === 0 ? (
         <EmptyState icon="mail" title="Сначала добавьте вакансию" text="Письмо создаётся под конкретную вакансию. Вставьте её описание в разделе «Вакансии» — это займёт минуту."
           action={<LinkButton href="/vacancies" size="lg">Добавить вакансию</LinkButton>} />

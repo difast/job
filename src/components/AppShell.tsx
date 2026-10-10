@@ -7,13 +7,14 @@ import { useGoal } from './GoalContext';
 import { Logo, LogoMark, cx, initials } from './ui';
 import { LEVEL_SHORT, type LevelKey } from '@/lib/types';
 
-// label — полное название, mid — для панели на средних экранах, short — для нижней мобильной навигации
-const NAV: { href: string; label: string; mid: string; short: string; icon: IconName }[] = [
+// Пять основных разделов — единственный способ навигации между ними (вверху на десктопе, внизу на мобильных).
+// label — полное название (широкий экран), mid — для 1024–1535 px, short — подпись в нижней мобильной панели.
+export const NAV: { href: string; label: string; mid: string; short: string; icon: IconName }[] = [
   { href: '/dashboard', label: 'Главная', mid: 'Главная', short: 'Главная', icon: 'home' },
   { href: '/resume', label: 'Моё резюме', mid: 'Моё резюме', short: 'Резюме', icon: 'file' },
   { href: '/vacancies', label: 'Вакансии', mid: 'Вакансии', short: 'Вакансии', icon: 'briefcase' },
-  { href: '/cover-letter', label: 'Сопроводительное письмо', mid: 'Письмо', short: 'Письмо', icon: 'mail' },
-  { href: '/interview', label: 'Собеседование', mid: 'Собеседование', short: 'Интервью', icon: 'mic' },
+  { href: '/cover-letter', label: 'Сопроводительные письма', mid: 'Письма', short: 'Письма', icon: 'mail' },
+  { href: '/interview', label: 'Собеседования', mid: 'Собеседования', short: 'Собеседования', icon: 'mic' },
 ];
 
 interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey; tier: 'free' | 'pro' }
@@ -90,15 +91,15 @@ export default function AppShell({ children, user, professionName, level, tier }
               const active = isActive(path, n.href);
               return (
                 <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
-                  className={cx('relative flex items-center whitespace-nowrap px-3 text-[14.5px] transition-colors xl:px-3.5', active ? 'font-medium text-milk' : 'text-milk/60 hover:text-milk')}>
+                  className={cx('relative flex items-center whitespace-nowrap px-3 text-[14.5px] transition-colors xl:px-3.5', active ? 'font-medium text-milk' : 'text-milk/65 hover:text-milk')} data-testid={`nav-${n.href.slice(1)}`}>
                   <span className="2xl:hidden">{n.mid}</span><span className="hidden 2xl:inline">{n.label}</span>
-                  {active && <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-accent-300" />}
+                  {active && <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t bg-accent-300" />}
                 </Link>
               );
             })}
           </nav>
-          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2.5 lg:flex-none">
-            <GoalChip professionName={professionName} level={level} className="flex-1 lg:max-w-[320px] lg:flex-none" />
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2.5">
+            <GoalChip professionName={professionName} level={level} className="flex-1 lg:max-w-[260px] xl:max-w-[320px]" />
             <UserMenu user={user} tier={tier} />
           </div>
         </div>
@@ -108,13 +109,14 @@ export default function AppShell({ children, user, professionName, level, tier }
 
       {/* Мобильная навигация */}
       <nav aria-label="Основное меню" data-testid="bottom-nav" className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-milk/95 backdrop-blur-md lg:hidden">
-        <ul className="mx-auto grid max-w-xl grid-cols-5">
+        <ul className="mx-auto grid max-w-xl grid-cols-[1fr_1fr_1fr_1fr_1.3fr]">
           {NAV.map((n) => {
             const active = isActive(path, n.href);
             return (
               <li key={n.href}>
-                <Link href={n.href} aria-current={active ? 'page' : undefined} aria-label={n.label} className={cx('flex h-[58px] flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors', active ? 'text-accent-600' : 'text-muted hover:text-ink')}>
-                  <Icon name={n.icon} size={21} strokeWidth={active ? 1.9 : 1.6} />{n.short}
+                <Link href={n.href} aria-current={active ? 'page' : undefined} aria-label={n.label} className={cx('relative flex h-[58px] flex-col items-center justify-center gap-1 px-0 text-[10px] font-medium leading-none tracking-[-0.01em] transition-colors min-[400px]:text-[10.5px]', active ? 'text-accent-600' : 'text-muted hover:text-ink')}>
+                  {active && <span className="absolute inset-x-4 top-0 h-[3px] rounded-b bg-accent-600" />}
+                  <Icon name={n.icon} size={21} strokeWidth={active ? 1.9 : 1.6} /><span className="max-w-full truncate">{n.short}</span>
                 </Link>
               </li>
             );

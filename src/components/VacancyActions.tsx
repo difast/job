@@ -53,8 +53,6 @@ export function DeleteVacancyButton({ id }: { id: string }) {
     router.push('/vacancies'); router.refresh();
   }
   return (
-    <button type="button" onClick={remove} disabled={busy} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-bad disabled:opacity-50">
-      {busy ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="trash" size={13} />}Удалить вакансию
-    </button>
+    <Button variant="danger" size="sm" onClick={remove} loading={busy} loadingText="Удаляем…"><Icon name="trash" size={14} />Удалить вакансию</Button>
   );
 }

@@ -119,7 +119,8 @@ export default function CoverLetterClient({ vacancies, initialId, autoCreate = f
           </div>
           {letter && style !== letter.style && <p className="mt-2 text-xs leading-relaxed text-muted">Стиль применится к новому варианту — текущее письмо не изменится.</p>}
         </div>
-        <Button className="w-full" onClick={generate} disabled={busy || editing} data-testid="create-letter">
+        {/* Главное действие: создать письмо, пока его нет; когда письмо готово — «Копировать», а новый вариант становится второстепенным */}
+        <Button variant={list.length ? 'secondary' : 'primary'} className="w-full" onClick={generate} disabled={busy || editing} data-testid="create-letter">
           {busy ? <><Spinner />Готовим письмо…</> : <><Icon name={list.length ? 'refresh' : 'mail'} size={15} />{createLabel}</>}
         </Button>
         <Link href={`/vacancies/${vid}`} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-600 hover:text-accent-700">Анализ этой вакансии<Icon name="arrow-right" size={13} /></Link>
@@ -130,9 +131,9 @@ export default function CoverLetterClient({ vacancies, initialId, autoCreate = f
           <div className="flex items-center gap-2">
             {list.length > 1 && !busy && (
               <div className="flex items-center gap-1" aria-label="Варианты письма">
-                <button type="button" aria-label="Более новый вариант" disabled={idx === 0 || editing} onClick={() => go(-1)} className="grid h-7 w-7 place-items-center rounded-md text-ink-2 hover:bg-subtle disabled:opacity-30"><Icon name="chevron-left" size={15} /></button>
+                <button type="button" aria-label="Более новый вариант" title="Более новый вариант" disabled={idx === 0 || editing} onClick={() => go(-1)} className="grid h-9 w-9 place-items-center rounded-md text-ink-2 hover:bg-subtle disabled:opacity-30"><Icon name="chevron-left" size={15} /></button>
                 <span className="tabular text-[13px] text-ink-2" data-testid="letter-variant">Вариант {list.length - idx} из {list.length}</span>
-                <button type="button" aria-label="Более ранний вариант" disabled={idx >= list.length - 1 || editing} onClick={() => go(1)} className="grid h-7 w-7 place-items-center rounded-md text-ink-2 hover:bg-subtle disabled:opacity-30"><Icon name="chevron-right" size={15} /></button>
+                <button type="button" aria-label="Более ранний вариант" title="Более ранний вариант" disabled={idx >= list.length - 1 || editing} onClick={() => go(1)} className="grid h-9 w-9 place-items-center rounded-md text-ink-2 hover:bg-subtle disabled:opacity-30"><Icon name="chevron-right" size={15} /></button>
               </div>
             )}
             <span className="tabular text-[13px] text-muted">{busy ? 'Готовим письмо…' : letter ? `${words} слов · ${SHORT[letter.style].toLowerCase()} стиль` : ''}</span>

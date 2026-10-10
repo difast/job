@@ -29,5 +29,5 @@ export const JOBTOO_INBOUND_FIELDS = [
   'Вакансия, если вы переходите с карточки отклика',
 ] as const;
 
-export const JOBTOO_PLACEMENTS = ['dashboard', 'resume', 'adaptation', 'settings'] as const;
+export const JOBTOO_PLACEMENTS = ['dashboard', 'resume', 'vacancies', 'adaptation', 'interview'] as const;
 export type JobTooPlacement = (typeof JOBTOO_PLACEMENTS)[number];

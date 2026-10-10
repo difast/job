@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVIEW_TYPE_LABELS, type AnswerFeedback, type InterviewType } from '@/lib/types';
 import Icon from './Icon';
-import { Alert, Button, ScoreRing, Segmented, Skeleton, Spinner, cx, scoreVerdict } from './ui';
+import { ActionError, Alert, Button, ScoreRing, Segmented, Skeleton, cx, scoreVerdict } from './ui';
+import JobTooButton from './JobTooButton';
 import { request } from '@/lib/client';
 import { useConfirm } from './Confirm';
 
@@ -18,8 +19,20 @@ function Difficulty({ level }: { level: number }) {
   );
 }
 
-export default function InterviewClient() {
+export interface InterviewVacancy { id: string; title: string; matchScore: number; focus: string[] }
+export interface InterviewHistory { count: number; avg: number; recent: { id: string; question: string; score: number; date: string }[] }
+
+/**
+ * Тренажёр собеседований: стартовый экран (тип, вакансия, начало) → тренировка → итог.
+ * Вопросы подбираются под профессию и уровень; вакансия добавляет фокус — её требования, которые стоит подготовить.
+ */
+export default function InterviewClient({ vacancies, initialVacancyId, history, jobtoo }: {
+  vacancies: InterviewVacancy[]; initialVacancyId: string | null; history: InterviewHistory; jobtoo: { hasConsent: boolean; origin: string } | null;
+}) {
   const [type, setType] = useState<InterviewType>('hr');
+  const [started, setStarted] = useState(false);
+  const [vid, setVid] = useState(initialVacancyId ?? '');
+  const vac = vacancies.find((v) => v.id === vid) ?? null;
   const [qs, setQs] = useState<Q[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [i, setI] = useState(0);
@@ -48,12 +61,14 @@ export default function InterviewClient() {
     return () => window.removeEventListener('beforeunload', h);
   }, [unsent]);
 
-  async function changeType(t: InterviewType) {
-    if (t === type || busy) return;
-    if ((unsent || (scores.length > 0 && !done)) && !(await confirm({ title: 'Сменить тип собеседования?', text: 'Текущая тренировка будет сброшена: прогресс и неотправленный ответ не сохранятся. Оценки уже отправленных ответов останутся в истории.', confirm: 'Сменить тип' }))) return;
-    setType(t);
+  function start() { setStarted(true); load(type); window.scrollTo({ top: 0 }); }
+
+  // Вернуться к выбору типа и вакансии. Сброс текущей тренировки — только с подтверждением.
+  async function changeSetup() {
+    if (busy) return;
+    if ((unsent || (scores.length > 0 && !done)) && !(await confirm({ title: 'Сменить параметры тренировки?', text: 'Текущая тренировка будет сброшена: прогресс и неотправленный ответ не сохранятся. Оценки уже отправленных ответов останутся в истории.', confirm: 'Сменить параметры' }))) return;
+    setStarted(false); setQs(null); setScores([]); setDone(false); setI(0); reset();
   }
-  useEffect(() => { load(type); }, [type, load]);
 
   const q = qs?.[i];
   const total = qs?.length ?? 0;
@@ -82,14 +97,81 @@ export default function InterviewClient() {
     setTimeout(() => field.current?.focus({ preventScroll: true }), 300);
   }
 
+  if (!started) {
+    return (
+      <div className="mx-auto max-w-[820px] space-y-6">
+        <section className="rounded-2xl border border-line bg-white p-6 sm:p-8" aria-labelledby="setup-h" data-testid="interview-setup">
+          <h2 id="setup-h" className="text-[20px] font-semibold tracking-[-0.015em]">Новая тренировка</h2>
+          <div className="mt-5">
+            <div className="mb-2 text-[13px] font-medium text-muted">Тип собеседования</div>
+            <Segmented label="Тип собеседования" value={type} onChange={setType} options={(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((t) => ({ value: t, label: INTERVIEW_TYPE_LABELS[t] }))} />
+          </div>
+          {vacancies.length > 0 && (
+            <div className="mt-5">
+              <label htmlFor="iv-vacancy" className="mb-2 block text-[13px] font-medium text-muted">Вакансия <span className="font-normal">· необязательно</span></label>
+              <div className="relative max-w-lg">
+                <select id="iv-vacancy" value={vid} onChange={(e) => setVid(e.target.value)} data-testid="interview-vacancy"
+                  className="h-11 w-full appearance-none truncate rounded-lg border border-line-strong bg-white pl-3.5 pr-9 text-sm outline-none focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]">
+                  <option value="">Без привязки к вакансии</option>
+                  {vacancies.map((v) => <option key={v.id} value={v.id}>{v.title} — {v.matchScore}%</option>)}
+                </select>
+                <Icon name="chevron-down" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
+              </div>
+              {vac && (
+                <div className="mt-3 max-w-lg rounded-xl bg-canvas px-4 py-3 text-sm leading-relaxed text-ink-2" data-testid="vacancy-focus">
+                  {vac.focus.length ? <>
+                    <div className="font-medium text-ink">Подготовьте примеры по требованиям, которые в резюме раскрыты слабее:</div>
+                    <ul className="mt-1.5 space-y-1">{vac.focus.map((f) => <li key={f} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" /><span className="user-text">{f}</span></li>)}</ul>
+                  </> : 'Резюме закрывает основные требования этой вакансии — потренируйтесь рассказывать о них уверенно.'}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button size="lg" onClick={start} data-testid="start-training">Начать тренировку<Icon name="arrow-right" size={16} /></Button>
+            <span className="text-[13px] text-muted">Вопросы с примерами сильных ответов, разбор каждого ответа</span>
+          </div>
+        </section>
+
+        {history.count > 0 && (
+          <section className="rounded-2xl border border-line bg-white" aria-labelledby="hist-h" data-testid="interview-history">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-6 py-4">
+              <h2 id="hist-h" className="text-[17px] font-semibold tracking-[-0.01em]">Ваши результаты</h2>
+              <span className="text-sm text-ink-2"><span className="tabular">{history.count}</span> {history.count % 10 === 1 && history.count % 100 !== 11 ? 'ответ' : 'ответов'} · средний балл <b className="tabular font-semibold text-ink">{history.avg}</b></span>
+            </div>
+            <ul className="divide-y divide-line">
+              {history.recent.map((h) => (
+                <li key={h.id} className="flex items-center gap-4 px-6 py-3 text-sm">
+                  <span className="min-w-0 flex-1 truncate" title={h.question}>{h.question}</span>
+                  <span className="shrink-0 text-muted">{h.date}</span>
+                  <span className={cx('tabular w-8 shrink-0 text-right font-semibold', h.score >= 70 ? 'text-ink' : h.score >= 45 ? 'text-accent-600' : 'text-bad')}>{h.score}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[820px] space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented label="Тип собеседования" value={type} onChange={changeType} options={(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((t) => ({ value: t, label: INTERVIEW_TYPE_LABELS[t] }))} />
-        {scores.length > 0 && !done && <span className="text-sm text-ink-2">Средний балл: <b className="tabular font-semibold text-ink">{avg}</b></span>}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3" data-testid="training-bar">
+        <div className="min-w-0 text-sm">
+          <span className="font-medium">{INTERVIEW_TYPE_LABELS[type]}</span>
+          {vac && <span className="text-ink-2"> · по вакансии «<span className="user-text">{vac.title}</span>»</span>}
+          {scores.length > 0 && !done && <span className="text-ink-2"> · средний балл <b className="tabular font-semibold text-ink">{avg}</b></span>}
+        </div>
+        <Button size="sm" variant="ghost" onClick={changeSetup} disabled={busy}><Icon name="sliders" size={14} />Сменить параметры</Button>
       </div>
+      {vac && vac.focus.length > 0 && !done && (
+        <details className="group rounded-xl bg-canvas px-4 py-3 text-sm">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-ink-2 hover:text-ink"><Icon name="chevron-right" size={14} className="transition-transform group-open:rotate-90" />Что подготовить по вакансии</summary>
+          <ul className="mt-2 space-y-1 text-ink-2">{vac.focus.map((f) => <li key={f} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" /><span className="user-text">{f}</span></li>)}</ul>
+        </details>
+      )}
 
-      {loadError && <Alert>Не удалось загрузить вопросы. <button className="font-medium underline" onClick={() => load(type)}>Повторить</button></Alert>}
+      {loadError && <ActionError message="Не удалось загрузить вопросы." onRetry={() => load(type)} />}
       {qs === null && !loadError && <div className="rounded-2xl border border-line bg-white p-8"><Skeleton className="mb-4 h-4 w-32" /><Skeleton className="mb-6 h-7 w-4/5" /><Skeleton className="h-40 w-full" /></div>}
       {qs?.length === 0 && <div className="rounded-2xl border border-line bg-white p-8 text-sm text-ink-2">Для этого сочетания пока нет вопросов — база регулярно пополняется. Попробуйте другой тип собеседования.</div>}
 
@@ -99,8 +181,17 @@ export default function InterviewClient() {
             <ScoreRing value={avg} size={124} stroke={8} suffix="средний балл" />
             <h2 className="mt-5 text-[24px] font-semibold tracking-[-0.02em]">Тренировка завершена</h2>
             <p className="mt-2 text-[15px] text-ink-2">Вы ответили на {scores.length} из {total} вопросов. {avg >= 70 ? 'Отличный результат!' : 'Повторите вопросы с низким баллом — в этом смысл тренировки.'}</p>
-            <Button size="lg" className="mt-7" onClick={() => load(type)}><Icon name="refresh" size={16} />Пройти ещё раз</Button>
+            <div className="mt-7 flex flex-wrap justify-center gap-2">
+              <Button size="lg" onClick={() => load(type)}><Icon name="refresh" size={16} />Пройти ещё раз</Button>
+              <Button size="lg" variant="secondary" onClick={changeSetup}>Сменить параметры</Button>
+            </div>
           </div>
+          {jobtoo && (
+            <div className="mx-auto mt-8 max-w-md border-t border-line pt-6 text-left">
+              <p className="text-sm leading-relaxed text-ink-2">Готовы откликаться? Перенесём профиль и резюме в JobToo и откроем подбор вакансий — регистрироваться заново не нужно.</p>
+              <JobTooButton placement="interview" hasConsent={jobtoo.hasConsent} origin={jobtoo.origin} full className="mt-3" />
+            </div>
+          )}
         </section>
       )}
 
@@ -147,10 +238,10 @@ export default function InterviewClient() {
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-4 text-[13px] text-muted">
                     <span className="tabular">{words} {words % 10 === 1 && words % 100 !== 11 ? 'слово' : 'слов'}{words > 0 && words < 40 ? ' · лучше 40–150' : ''}</span>
-                    <button type="button" onClick={skip} disabled={busy} className="font-medium text-ink-2 transition-colors hover:text-ink">Пропустить</button>
+                    <Button size="sm" variant="ghost" onClick={skip} disabled={busy} className="-ml-3">Пропустить вопрос</Button>
                   </div>
                   <div className="flex items-center gap-3"><span className="hidden text-xs text-muted sm:inline">Ctrl + Enter</span>
-                    <Button size="lg" onClick={submit} disabled={busy || answer.trim().length < 3}>{busy ? <><Spinner />Разбираем ответ…</> : 'Ответить'}</Button></div>
+                    <Button size="lg" onClick={submit} disabled={answer.trim().length < 3} loading={busy} loadingText="Разбираем ответ…">Ответить</Button></div>
                 </div>
               </div>
             ) : (

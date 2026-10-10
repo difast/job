@@ -5,23 +5,34 @@ import { request } from '@/lib/client';
 import { JOBTOO_CONSENT_TEXT, JOBTOO_FIELDS, type JobTooPlacement } from '@/lib/partners/shared';
 import Icon from './Icon';
 import Modal from './Modal';
-import { Alert, Button, Spinner, cx } from './ui';
+import { ActionError, Button, cx } from './ui';
 
 const track = (event: string, placement: string, requestId?: string) =>
   fetch('/api/integrations/jobtoo/track', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event, placement, requestId }) }).catch(() => {});
 
+/** Подпись и пояснение зависят от шага пользователя — на экране показывается только одно подходящее действие. */
+const CONTEXT: Record<JobTooPlacement, { label: string; title: string; text: string }> = {
+  dashboard: { label: 'Перейти к вакансиям в JobToo', title: 'Ищете вакансии?', text: 'Перенесём профиль и резюме в JobToo — сервис поиска работы — и откроем ваш кабинет там. Регистрироваться заново не нужно.' },
+  resume: { label: 'Перейти к вакансиям в JobToo', title: 'Ищете вакансии?', text: 'Перенесём профиль и это резюме в JobToo и откроем ваш кабинет там. Регистрироваться заново не нужно.' },
+  vacancies: { label: 'Перейти к вакансиям в JobToo', title: 'Нужно больше вакансий?', text: 'В JobToo — подбор вакансий по вашему резюме. Перенесём профиль и резюме, регистрироваться заново не нужно.' },
+  adaptation: { label: 'Откликнуться через JobToo', title: 'Резюме готово к отклику', text: 'Передадим профиль и резюме с принятыми правками в JobToo — там можно откликнуться на вакансии.' },
+  interview: { label: 'Продолжить поиск работы в JobToo', title: 'Что дальше?', text: 'Перенесём профиль и резюме в JobToo и откроем подбор вакансий — регистрироваться заново не нужно.' },
+};
+
 /**
- * «Перейти в JobToo»: при первом переходе — окно согласия, затем сервер передаёт данные в JobToo
- * и возвращает одноразовую ссылку входа. Браузер просто переходит по ней.
+ * Переход в JobToo (внешний сервис-партнёр). При первом переходе — окно согласия, затем сервер передаёт данные
+ * и возвращает одноразовую ссылку входа. В URL персональные данные не попадают.
  */
-export default function JobTooButton({ placement, vacancyId, hasConsent, variant = 'secondary', className, full }: {
-  placement: JobTooPlacement; vacancyId?: string; hasConsent: boolean; variant?: 'primary' | 'secondary'; className?: string; full?: boolean;
+export default function JobTooButton({ placement, vacancyId, hasConsent, origin, className, full, size = 'md' }: {
+  placement: JobTooPlacement; vacancyId?: string; hasConsent: boolean; origin: string; className?: string; full?: boolean; size?: 'md' | 'lg';
 }) {
+  const ctx = CONTEXT[placement];
   const [consent, setConsent] = useState(hasConsent);
   const [open, setOpen] = useState(false);
   const [checked, setChecked] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'redirect'>('idle');
   const [error, setError] = useState('');
+  const busy = phase !== 'idle';
 
   useEffect(() => {
     // показ кнопки — не чаще раза за сессию на каждое место
@@ -35,9 +46,10 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, variant
 
   async function go() {
     if (busy) return;
-    setBusy(true); setError('');
+    setPhase('sending'); setError('');
     const r = await request<{ url: string; requestId: string }>('/api/integrations/jobtoo/handoff', { method: 'POST', json: { placement, vacancyId }, timeoutMs: 20_000 });
-    if (!r.ok) { setBusy(false); setError(r.error); return; }
+    if (!r.ok) { setPhase('idle'); setError(r.error); return; }
+    setPhase('redirect');
     await track('redirect_opened', placement, r.data.requestId);
     window.location.assign(r.data.url);
   }
@@ -51,30 +63,37 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, variant
   }
 
   async function accept() {
-    setBusy(true); setError('');
+    setPhase('sending'); setError('');
     const r = await request('/api/integrations/jobtoo/consent', { method: 'POST', json: { placement }, timeoutMs: 20_000 });
-    if (!r.ok) { setBusy(false); setError(r.error); return; }
-    setConsent(true); setOpen(false); setBusy(false);
+    if (!r.ok) { setPhase('idle'); setError(r.error); return; }
+    setConsent(true); setOpen(false); setPhase('idle');
     await go();
   }
 
   function decline() {
+    if (busy) return;
     setOpen(false);
     void track('consent_declined', placement);
   }
 
   return (
     <div className={cx(full && 'w-full', className)}>
-      <Button variant={variant} className={full ? 'w-full' : undefined} onClick={click} disabled={busy} data-testid={`jobtoo-${placement}`}>
-        {busy ? <><Spinner />Передаём данные…</> : <><Icon name="external" size={16} />Перейти в JobToo</>}
+      <Button variant="partner" size={size} className={full ? 'w-full' : undefined} onClick={click} loading={busy}
+        loadingText={phase === 'redirect' ? 'Открываем JobToo…' : 'Передаём профиль и резюме…'}
+        aria-label={`${ctx.label} — откроется сайт JobToo`} data-testid={`jobtoo-${placement}`}>
+        {ctx.label}<Icon name="external" size={15} />
       </Button>
-      {error && !open && <Alert className="mt-3">{error} <button type="button" onClick={go} className="font-medium underline underline-offset-2">Повторить</button></Alert>}
+      {error && !open && (
+        <ActionError className="mt-3" message={<>{error} Данные в JobToo не переданы.</>} onRetry={go}>
+          {origin && <a href={origin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline">Открыть JobToo без переноса резюме<Icon name="external" size={13} /></a>}
+        </ActionError>
+      )}
 
       <Modal open={open} onClose={decline} width="max-w-lg" title="Передать данные в JobToo?"
         description="JobToo создаст или найдёт ваш профиль и загрузит в него резюме — вы сразу окажетесь в своём кабинете JobToo."
         footer={<>
           <Button variant="ghost" onClick={decline} disabled={busy}>Отмена</Button>
-          <Button onClick={accept} disabled={!checked || busy} data-testid="jobtoo-consent-ok">{busy ? <><Spinner />Передаём данные…</> : 'Продолжить'}</Button>
+          <Button variant="primary" onClick={accept} disabled={!checked} loading={busy} loadingText="Передаём…" data-testid="jobtoo-consent-ok">Передать и перейти в JobToo</Button>
         </>}>
         <div className="space-y-4 text-sm leading-relaxed text-ink-2">
           <div>
@@ -87,9 +106,24 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, variant
             <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent-600)]" data-testid="jobtoo-consent" />
             <span>Согласен(на) на передачу перечисленных данных в JobToo</span>
           </label>
-          {error && <Alert>{error}</Alert>}
+          {error && <ActionError message={error} />}
         </div>
       </Modal>
     </div>
+  );
+}
+
+/** Карточка перехода в JobToo: заголовок шага, что произойдёт, кнопка. Визуально вторична по отношению к действиям Clymly. */
+export function JobTooCard({ placement, state, vacancyId, layout = 'stack' }: { placement: JobTooPlacement; state: { hasConsent: boolean; origin: string }; vacancyId?: string; layout?: 'stack' | 'row' }) {
+  const ctx = CONTEXT[placement];
+  return (
+    <section aria-label={`${ctx.title} JobToo`} data-testid="jobtoo-card"
+      className={cx('rounded-2xl border border-line bg-white p-5', layout === 'row' && 'flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between')}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-[15px] font-medium">{ctx.title}<span className="rounded-full bg-[#f4e8e5] px-2 py-0.5 text-[11px] font-medium text-wine">JobToo</span></div>
+        <p className="mt-1 text-sm leading-relaxed text-ink-2">{ctx.text}</p>
+      </div>
+      <JobTooButton placement={placement} vacancyId={vacancyId} hasConsent={state.hasConsent} origin={state.origin} full={layout === 'stack'} className={layout === 'stack' ? 'mt-4' : 'shrink-0'} />
+    </section>
   );
 }

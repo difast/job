@@ -4,7 +4,7 @@ import { requirePageUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { relativeDay } from '@/lib/format';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
-import { PageHeader, ScoreRing, scoreTone } from '@/components/ui';
+import { PageHeader, ScoreRing, buttonClass, scoreTone } from '@/components/ui';
 import Icon from '@/components/Icon';
 import VacancyAnalysisView, { GROUPS } from '@/components/VacancyAnalysisView';
 import { AdaptButton, DeleteVacancyButton } from '@/components/VacancyActions';
@@ -48,7 +48,10 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
               })}
             </ul>
             <div className="mt-5"><AdaptButton id={v.id} hasAdaptation={!!v.adaptation} /></div>
-            <Link href={`/cover-letter?vacancy=${v.id}&create=1`} className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink"><Icon name="mail" size={15} />Создать сопроводительное письмо</Link>
+            <div className="mt-3 grid gap-1">
+              <Link href={`/cover-letter?vacancy=${v.id}&create=1`} className={buttonClass({ variant: 'ghost', className: 'w-full' })}><Icon name="mail" size={15} />Создать сопроводительное письмо</Link>
+              <Link href={`/interview?vacancy=${v.id}`} className={buttonClass({ variant: 'ghost', className: 'w-full' })} data-testid="interview-for-vacancy"><Icon name="mic" size={15} />Подготовиться к собеседованию</Link>
+            </div>
           </section>
         </aside>
       </div>

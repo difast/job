@@ -84,9 +84,9 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
                   {c.edited && <Badge>Отредактировано</Badge>}</div>
                 <div className="flex gap-1.5">
                   {pending === c.id && <Spinner className="self-center text-muted" />}
-                  <Button size="sm" variant={c.status === 'accepted' ? 'primary' : 'secondary'} disabled={!!pending || c.status === 'accepted'} aria-pressed={c.status === 'accepted'} onClick={() => patch({ changeId: c.id, status: 'accepted' }, c.id)}>Принять</Button>
+                  <Button size="sm" variant="secondary" disabled={!!pending || c.status === 'accepted'} aria-pressed={c.status === 'accepted'} onClick={() => patch({ changeId: c.id, status: 'accepted' }, c.id)}>Принять</Button>
                   <Button size="sm" variant="secondary" disabled={!!pending || c.status === 'rejected'} aria-pressed={c.status === 'rejected'} onClick={() => patch({ changeId: c.id, status: 'rejected' }, c.id)}>Отклонить</Button>
-                  <Button size="sm" variant="ghost" disabled={!!pending || editing === c.id} onClick={() => { setEditing(c.id); setDraft(eff(c)); }} aria-label="Редактировать"><Icon name="edit" size={14} /><span className="hidden sm:inline">Редактировать</span></Button>
+                  <Button size="sm" variant="ghost" disabled={!!pending || editing === c.id} onClick={() => { setEditing(c.id); setDraft(eff(c)); }} aria-label="Редактировать правку" title="Редактировать правку"><Icon name="edit" size={14} /><span className="hidden sm:inline">Редактировать</span></Button>
                 </div>
               </div>
               {editing === c.id ? (
@@ -135,7 +135,10 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
         <span className="text-sm text-ink-2">{accepted ? 'Резюме готово — осталось письмо.' : 'Примите подходящие правки, затем подготовьте письмо.'} Письмо учтёт принятые правки.</span>
-        <Link href={`/cover-letter?vacancy=${vacancyId}&create=1`} className={buttonClass({ size: 'lg' })}>Создать сопроводительное письмо<Icon name="arrow-right" size={16} /></Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/interview?vacancy=${vacancyId}`} className={buttonClass({ variant: 'ghost', size: 'lg' })}><Icon name="mic" size={16} />Подготовиться к собеседованию</Link>
+          <Link href={`/cover-letter?vacancy=${vacancyId}&create=1`} className={buttonClass({ variant: 'secondary', size: 'lg' })}><Icon name="mail" size={16} />Создать сопроводительное письмо</Link>
+        </div>
       </div>
       <textarea hidden readOnly value={finalText} data-testid="final-text" />
     </div>

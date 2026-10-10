@@ -267,7 +267,9 @@ section('Почта подтверждена с обеих сторон');
 /* ───────── Clymly → JobToo ───────── */
 section('Clymly → JobToo');
 page = await (await anna.req('/resume')).text();
-ok(page.includes('Перейти в JobToo') && page.includes('data-testid="jobtoo-resume"'), 'кнопка «Перейти в JobToo» в «Моём резюме»');
+ok(page.includes('Перейти к вакансиям в JobToo') && page.includes('data-testid="jobtoo-resume"'), 'кнопка «Перейти к вакансиям в JobToo» в «Моём резюме»');
+ok((await (await anna.req('/vacancies')).text()).includes('data-testid="jobtoo-vacancies"'), 'кнопка в «Вакансиях»');
+{ const vl = await (await anna.req('/dashboard')).text(); ok((vl.match(/data-testid="jobtoo-(dashboard|resume|vacancies|adaptation|interview)"/g) ?? []).length === 1, 'на экране один переход в JobToo'); }
 page = await (await anna.req('/dashboard')).text();
 ok(page.includes('data-testid="jobtoo-dashboard"'), 'кнопка на главной');
 r = await anna.json('/api/integrations/jobtoo/handoff', { placement: 'resume' });

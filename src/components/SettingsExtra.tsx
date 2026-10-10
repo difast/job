@@ -74,7 +74,7 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
           {hasPassword && <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} aria-label="Текущий пароль" />}
           <div className="flex flex-col gap-2 sm:flex-row">
             <input type="password" autoComplete="new-password" placeholder="Новый пароль, минимум 8 символов" value={pass} onChange={(e) => setPass(e.target.value)} className={input} aria-label="Новый пароль" minLength={8} required />
-            <Button type="submit" variant="dark" disabled={!!busy || pass.length < 8 || (hasPassword && !current)}>{busy === 'pass' && <Spinner />}{hasPassword ? 'Сменить' : 'Задать пароль'}</Button>
+            <Button type="submit" variant="secondary" disabled={!!busy || pass.length < 8 || (hasPassword && !current)}>{busy === 'pass' && <Spinner />}{hasPassword ? 'Сменить' : 'Задать пароль'}</Button>
           </div>
           {error && <Alert>{error} Введённые данные сохранены в полях.</Alert>}
         </form>

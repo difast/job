@@ -5,30 +5,65 @@ import { BRAND, BRAND_COLORS, MARK } from '@/lib/brand';
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ');
 
-/* ───────── Кнопки ───────── */
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dark' | 'soft';
-type Size = 'sm' | 'md' | 'lg';
+/* ───────── Кнопки ─────────
+   Единая иерархия:
+   primary   — одно главное действие на экране (терракотовая заливка);
+   secondary — альтернативные действия (белая кнопка с контуром);
+   ghost     — вспомогательные действия и навигационные ссылки (без фона);
+   danger    — удаление и другие опасные операции (красный текст и контур);
+   partner   — переход во внешний сервис JobToo (винный акцент + значок внешней ссылки).
+   Размеры: sm 36px, md 40px, lg 44px — одинаковые отступы, радиус и шрифт для всех вариантов.
+   Состояния: hover, active (нажатие), focus-visible (общий контур из globals.css), disabled, loading (спиннер + aria-busy). */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'partner';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
-export function buttonClass({ variant = 'primary', size = 'md', className }: { variant?: Variant; size?: Size; className?: string } = {}) {
+export function buttonClass({ variant = 'primary', size = 'md', className }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) {
   return cx(
-    'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-50',
-    size === 'sm' && 'h-8 px-3 text-[13px]', size === 'md' && 'h-10 px-4 text-sm', size === 'lg' && 'h-11 px-5 text-[15px]',
-    variant === 'primary' && 'bg-accent-600 text-white shadow-[0_1px_2px_rgba(147,55,32,0.35),inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-accent-700',
-    variant === 'secondary' && 'border border-line-strong bg-white text-ink hover:border-[#c2b8aa] hover:bg-subtle',
-    variant === 'ghost' && 'text-ink-2 hover:bg-subtle hover:text-ink',
-    variant === 'dark' && 'bg-ink text-milk hover:bg-black',
-    variant === 'soft' && 'bg-accent-50 text-accent-700 hover:bg-accent-100',
-    variant === 'danger' && 'border border-line-strong bg-white text-bad hover:border-[#e3b3af] hover:bg-bad-soft',
+    'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,border-color,color] duration-150',
+    'disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-busy:cursor-progress',
+    size === 'sm' && 'h-9 px-3.5 text-[13px]', size === 'md' && 'h-10 px-4 text-sm', size === 'lg' && 'h-11 px-5 text-[15px]',
+    variant === 'primary' && 'bg-accent-600 text-white hover:bg-accent-700 active:bg-[#7d2e1b]',
+    variant === 'secondary' && 'border border-line-strong bg-white text-ink hover:border-[#c2b8aa] hover:bg-subtle active:bg-stone',
+    variant === 'ghost' && 'text-ink-2 hover:bg-subtle hover:text-ink active:bg-stone',
+    variant === 'danger' && 'border border-[#ecccc7] bg-white text-bad hover:border-[#dfaaa3] hover:bg-bad-soft active:bg-[#f5dcd8]',
+    variant === 'partner' && 'border border-[#dcc6c2] bg-[#faf4f2] text-wine hover:border-[#caa8a2] hover:bg-[#f4e8e5] active:bg-[#eddad6]',
     className,
   );
 }
 
-export function Button({ variant, size, className, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
-  return <button {...p} className={buttonClass({ variant, size, className })} />;
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; loadingText?: ReactNode };
+
+/** Кнопка. loading — блокирует повторное нажатие и показывает спиннер (с текстом loadingText, если он задан). */
+export function Button({ variant, size, className, loading, loadingText, children, disabled, type = 'button', ...p }: ButtonProps) {
+  return (
+    <button {...p} type={type} disabled={disabled || loading} aria-busy={loading || undefined} className={buttonClass({ variant, size, className })}>
+      {loading ? <><Spinner />{loadingText ?? children}</> : children}
+    </button>
+  );
 }
 
-export function LinkButton({ href, variant, size, className, children }: { href: string; variant?: Variant; size?: Size; className?: string; children: ReactNode }) {
-  return <Link href={href} className={buttonClass({ variant, size, className })}>{children}</Link>;
+export function LinkButton({ href, variant, size, className, children, ...p }: { href: string; variant?: ButtonVariant; size?: ButtonSize; className?: string; children: ReactNode } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'className'>) {
+  return <Link href={href} className={buttonClass({ variant, size, className })} {...p}>{children}</Link>;
+}
+
+/** Текстовая ссылка-переход (tertiary): «Открыть полный анализ →». */
+export function TextLink({ href, children, className, arrow = true }: { href: string; children: ReactNode; className?: string; arrow?: boolean }) {
+  return <Link href={href} className={cx('inline-flex items-center gap-1 text-sm font-medium text-accent-600 transition-colors hover:text-accent-700', className)}>{children}{arrow && <Icon name="arrow-right" size={14} />}</Link>;
+}
+
+/** Ошибка действия с безопасным повтором — единый вид для всех кнопок. */
+export function ActionError({ message, onRetry, retryLabel = 'Повторить', children, className }: { message: ReactNode; onRetry?: () => void; retryLabel?: string; children?: ReactNode; className?: string }) {
+  return (
+    <div role="alert" className={cx('rounded-lg border border-[#f1cfcb] bg-bad-soft px-3.5 py-3 text-sm leading-relaxed text-bad', className)}>
+      <div>{message}</div>
+      {(onRetry || children) && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          {onRetry && <button type="button" onClick={onRetry} className="font-medium underline underline-offset-2 hover:no-underline">{retryLabel}</button>}
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ───────── Поверхности ───────── */
