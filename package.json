@@ -14,7 +14,7 @@
     "postinstall": "prisma generate",
     "e2e": "node scripts/e2e.mjs",
     "ui-check": "node scripts/ui-check.mjs",
-    "start:prod": "test -n \"$DATABASE_URL\" || { echo \"Ошибка: не задана переменная DATABASE_URL (строка подключения к PostgreSQL)\" >&2; exit 1; } && prisma db push --skip-generate && tsx prisma/seed.ts && next start -H 0.0.0.0 -p ${PORT:-3000}"
+    "start:prod": "test -n \"$DATABASE_URL\" || { echo \"Ошибка: не задана переменная DATABASE_URL (строка подключения к PostgreSQL)\" >&2; exit 1; } && export DATABASE_URL=\"$(node scripts/db-url.mjs)\" && prisma db push --skip-generate && tsx prisma/seed.ts && next start -H 0.0.0.0 -p ${PORT:-3000}"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
