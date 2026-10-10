@@ -6,7 +6,7 @@ const PRIVATE = ['/dashboard', '/resume', '/vacancies', '/cover-letter', '/inter
 const isPrivate = (p: string) => PRIVATE.some((x) => p === x || p.startsWith(x + '/'));
 
 // Старые адреса проекта → 301 на основной домен (только GET/HEAD страниц; API, вебхуки оплаты и health-check не затрагиваются).
-// Пример: LEGACY_HOSTS="difast-job-8beb.twc1.net"  APP_URL="https://clymly.ru"
+// Пример: LEGACY_HOSTS="difast-job-f95c.twc1.net"  APP_URL="https://clymly.ru"
 const LEGACY = (process.env.LEGACY_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 
 export function middleware(req: NextRequest) {
