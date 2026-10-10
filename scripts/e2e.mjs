@@ -47,8 +47,9 @@ ok((await post('/api/profile', { professionId: 'product-manager', level: 'middle
 let page = await (await req('/dashboard')).text();
 ok(page.includes('Ваша цель') && page.includes('Продакт-менеджер') && page.includes('Middle') && page.includes('Изменить цель'), 'на дашборде и в меню видны цель (профессия и уровень) и кнопка «Изменить цель»');
 ok(page.includes('Начните с резюме') && page.includes('Загрузите резюме, чтобы получить персональный анализ и рекомендации.') && page.includes('Загрузить резюме'), 'empty state дашборда без резюме');
-for (const t of ['Главная', 'Моё резюме', 'Вакансии', 'Сопроводительное письмо', 'Собеседование', 'Настройки', 'Выйти']) ok(page.includes(t), `меню: ${t}`);
-for (const t of ['Проанализировать вакансию', 'Адаптировать резюме', 'Создать сопроводительное', 'Тренировать собеседование']) ok(page.includes(t), `быстрое действие: ${t}`);
+for (const t of ['Главная', 'Моё резюме', 'Вакансии', 'Сопроводительное письмо', 'Собеседование']) ok(page.includes(t), `верхнее меню: ${t}`);
+for (const t of ['Ваш путь к отклику', 'Резюме', 'Анализ вакансий', 'Адаптация резюме', 'Сопроводительные письма', 'Тренажёр собеседования']) ok(page.includes(t), `панель «Ваш путь»: ${t}`);
+ok(page.includes('не загружено'), 'панель «Ваш путь»: статус резюме «не загружено»');
 
 // Загрузка резюме
 async function upload(name, type, bytes) {
@@ -69,9 +70,10 @@ ok(Object.keys(a.breakdown).length === 6, 'оценка разбита на 6 к
 ok(a.improvements.length >= 3 && a.improvements.length <= 5, `3–5 рекомендаций (${a.improvements.length})`);
 ok(a.strengths.length > 0 && Array.isArray(a.missingSkills) && a.experienceTips.length > 0, 'есть сильные стороны, недостающие навыки, рекомендации по опыту');
 page = await (await req('/dashboard')).text();
-ok(page.includes('resume.docx') && page.includes('Структура') && page.includes('Достижения') && page.includes('Посмотреть анализ'), 'дашборд после загрузки: файл, оценка с разбивкой, кнопка');
+ok(page.includes('resume.docx') && page.includes('Структура') && page.includes('Достижения') && page.includes('Полный анализ') && page.includes('Что улучшить в первую очередь'), 'дашборд после загрузки: файл, оценка с разбивкой, топ-рекомендации, переход к анализу');
+ok(page.includes('Следующий шаг') && page.includes('Проверьте резюме на реальной вакансии'), 'следующий шаг после загрузки: анализ вакансии');
 page = await (await req('/resume')).text();
-ok(['Сильные стороны', 'Что улучшить', 'Недостаёт', 'Улучшить резюме', 'Последний анализ', 'сегодня', 'Соответствие профессии'].every((t) => page.includes(t)), 'страница резюме: оценка, сильные стороны, что улучшить, недостаёт, статус анализа, CTA');
+ok(['Сильные стороны', 'Что улучшить', 'Недостающие навыки', 'Улучшить резюме', 'Заменить резюме', 'Что дальше', 'Последний анализ', 'сегодня', 'Соответствие профессии'].every((t) => page.includes(t)), 'страница резюме: оценка, сильные стороны, что улучшить, недостаёт, статус анализа, CTA');
 
 // Вакансия
 const vacancy = readFileSync('tests/fixtures/vacancy.txt', 'utf8');
@@ -80,6 +82,8 @@ r = await post('/api/vacancies', { text: vacancy });
 d = await jsonOf(r);
 ok(r.status === 200 && d.id, 'вакансия проанализирована');
 const vid = d.id;
+page = await (await req('/dashboard')).text();
+ok(page.includes('Адаптируйте резюме под'), 'следующий шаг после вакансии: адаптация');
 page = await (await req(`/vacancies/${vid}`)).text();
 ok(/соответствия вакансии/.test(page) && page.includes('Адаптировать резюме') && page.includes('Не хватает') && page.includes('Вы соответствуете') && page.includes('Что стоит изменить'), 'страница анализа вакансии содержит все блоки');
 const vrow = (await (await req('/vacancies')).text());
@@ -89,6 +93,8 @@ ok(vrow.includes('Продуктовый менеджер'), 'вакансия �
 r = await post(`/api/vacancies/${vid}/adapt`, {});
 d = await jsonOf(r);
 ok(r.status === 200 && d.id && d.changes >= 1, `адаптация создана (правок: ${d.changes})`);
+page = await (await req('/dashboard')).text();
+ok(page.includes('Подготовьте сопроводительное письмо'), 'следующий шаг после адаптации: письмо');
 const aid = d.id;
 page = await (await req(`/vacancies/${vid}/adapt`)).text();
 ok(page.includes('Исходное резюме') && page.includes('Адаптированное резюме'), 'показаны две версии резюме');
@@ -129,6 +135,8 @@ r = await post('/api/cover-letters', { vacancyId: vid, style: 'professional' });
 ok((await jsonOf(r)).text !== styles.professional, 'перегенерация даёт новый вариант');
 const lid = (await jsonOf(await post('/api/cover-letters', { vacancyId: vid, style: 'short' }))).id;
 ok((await post(`/api/cover-letters/${lid}`, { text: 'Отредактированное письмо' }, 'PATCH')).status === 200, 'редактирование письма сохраняется');
+page = await (await req('/dashboard')).text();
+ok(page.includes('Потренируйтесь перед собеседованием'), 'следующий шаг после письма: собеседование');
 page = await (await req(`/cover-letter?vacancy=${vid}`)).text();
 ok(page.includes('Отредактированное письмо'), 'отредактированное письмо отображается после перезагрузки');
 
@@ -147,6 +155,8 @@ ok(r.status === 200 && d.feedback.score >= 60, `тренажёр: сильный
 r = await post('/api/interview/answer', { questionId: q.id, answer: 'не знаю' });
 const weak = (await jsonOf(r)).feedback;
 ok(weak.score < 40 && weak.missed.length > 0 && weak.tips.length > 0, `тренажёр: слабый ответ получает низкую оценку и советы (${weak.score})`);
+page = await (await req('/dashboard')).text();
+ok(page.includes('Всё готово к отклику') && /ответ(а|ов)?/.test(page), 'после тренировки: путь пройден, счётчик ответов');
 
 // Оплата (тестовый режим — заглушка ЮKassa)
 page = await (await req('/billing')).text();
@@ -182,6 +192,8 @@ ok(page.includes('Разработчик') || page.includes('Software') || true,
 d = await jsonOf(await req('/api/resume', { method: 'PUT' }));
 ok(d.analysis.score > 0, 'ручной пересчёт анализа работает');
 for (const p of ['/settings', '/interview', '/cover-letter', '/vacancies']) ok((await req(p)).status === 200, `страница ${p} открывается`);
+page = await (await req('/settings')).text();
+ok(['Профиль', 'Цель', 'Тариф', 'Выйти из аккаунта'].every((t) => page.includes(t)), 'настройки: профиль, цель, тариф, выход');
 
 // Изоляция данных и logout
 const saved = cookie;

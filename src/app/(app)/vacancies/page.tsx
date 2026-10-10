@@ -3,9 +3,11 @@ import { requirePageUser } from '@/lib/auth';
 import { latestResume } from '@/lib/context';
 import { db } from '@/lib/db';
 import { relativeDay } from '@/lib/format';
-import { Badge, PageHeader, scoreTone } from '@/components/ui';
+import { PageHeader, cx, scoreTone } from '@/components/ui';
 import Icon from '@/components/Icon';
 import VacancyForm from '@/components/VacancyForm';
+
+const STEPS = ['Вставьте описание', 'Сравним с резюме', 'Адаптируем резюме'];
 
 export default async function VacanciesPage() {
   const user = await requirePageUser();
@@ -15,27 +17,44 @@ export default async function VacanciesPage() {
   ]);
   return (
     <>
-      <PageHeader title="Анализ вакансии" subtitle="Вставьте текст вакансии — покажем, насколько вы ей соответствуете, и подскажем, как усилить резюме без выдуманных фактов." />
-      <VacancyForm hasResume={!!resume} />
-      {vacancies.length > 0 && (
-        <section className="mt-12" aria-labelledby="hist">
-          <h2 id="hist" className="mb-3 text-lg font-semibold tracking-tight">Ваши вакансии</h2>
-          <ul className="overflow-hidden rounded-xl border border-line bg-white shadow-card">
-            {vacancies.map((v) => (
-              <li key={v.id} className="border-b border-line last:border-b-0">
-                <Link href={`/vacancies/${v.id}`} className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-canvas sm:px-5">
-                  <div className={`tabular w-14 shrink-0 text-xl font-semibold tracking-tight ${scoreTone(v.matchScore)}`}>{v.matchScore}%</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[15px] font-medium">{v.title}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[13px] text-muted">{relativeDay(v.createdAt)}{v.adaptation && <Badge tone="accent">Резюме адаптировано</Badge>}</div>
-                  </div>
-                  <Icon name="chevron-right" size={17} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-                </Link>
+      <PageHeader title="Анализ вакансии" subtitle="Покажем, насколько вы соответствуете требованиям, и подскажем, как усилить резюме без выдуманных фактов." />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
+        <div className="min-w-0">
+          <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-[13px] text-ink-2" aria-label="Как это работает">
+            {STEPS.map((s, i) => (
+              <li key={s} className="flex items-center gap-2">
+                <span className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold', i === 0 ? 'bg-ink text-milk' : 'bg-stone text-ink-2')}>{i + 1}</span>{s}
+                {i < STEPS.length - 1 && <Icon name="chevron-right" size={14} className="text-muted" />}
               </li>
             ))}
-          </ul>
-        </section>
-      )}
+          </ol>
+          <VacancyForm hasResume={!!resume} />
+        </div>
+
+        <aside aria-labelledby="hist" className="lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-2xl border border-line bg-white">
+            <h2 id="hist" className="border-b border-line px-5 py-4 text-[17px] font-semibold tracking-[-0.01em]">Ваши вакансии{vacancies.length > 0 && <span className="tabular ml-2 font-sans text-sm font-normal text-muted">{vacancies.length}</span>}</h2>
+            {vacancies.length === 0 ? (
+              <p className="px-5 py-5 text-sm leading-relaxed text-muted">Здесь появятся проанализированные вакансии — к ним можно вернуться, чтобы адаптировать резюме или написать письмо.</p>
+            ) : (
+              <ul className="max-h-[560px] divide-y divide-line overflow-y-auto">
+                {vacancies.map((v) => (
+                  <li key={v.id}>
+                    <Link href={`/vacancies/${v.id}`} className="group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-canvas">
+                      {v.adaptation && <span aria-hidden="true" className="absolute inset-y-3 left-0 w-[3px] rounded-r bg-accent-500" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="user-text line-clamp-2 text-[15px] font-medium leading-snug">{v.title}</div>
+                        <div className="mt-1 text-[13px] text-muted">{relativeDay(v.createdAt)}{v.adaptation ? ' · резюме адаптировано' : ''}</div>
+                      </div>
+                      <span className={`tabular shrink-0 text-[17px] font-semibold ${scoreTone(v.matchScore)}`}>{v.matchScore}%</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
+      </div>
     </>
   );
 }

@@ -55,7 +55,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
 
   return (
     <div className="space-y-10">
-      <div className="sticky top-14 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8 lg:top-0">
+      <div className="sticky top-14 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8 lg:top-16">
         <p className="text-sm text-ink-2">Принято правок: <b className="tabular font-semibold text-ink" data-testid="accepted-count">{accepted}</b> из {changes.length}</p>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={() => patch({ all: 'accepted' })}>Принять все</Button>
@@ -71,10 +71,10 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
           {changes.map((c) => (
             <li key={c.id}><Card className={c.status === 'rejected' ? 'opacity-60' : ''}>
               <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5"><Badge tone="accent">{c.section}</Badge>
-                  {c.status === 'accepted' && <Badge tone="ok"><Icon name="check" size={12} strokeWidth={2.4} />Принято</Badge>}
+                <div className="flex flex-wrap items-center gap-1.5"><span className="text-[13px] font-medium text-accent-600">{c.section}</span>
+                  {c.status === 'accepted' && <span className="inline-flex items-center gap-1 rounded-md bg-ink px-2 py-0.5 text-xs font-medium text-milk"><Icon name="check" size={12} strokeWidth={2.4} />Принято</span>}
                   {c.status === 'rejected' && <Badge>Отклонено</Badge>}
-                  {c.edited && <Badge tone="warn">Отредактировано</Badge>}</div>
+                  {c.edited && <Badge>Отредактировано</Badge>}</div>
                 <div className="flex gap-1.5">
                   <Button size="sm" variant={c.status === 'accepted' ? 'primary' : 'secondary'} onClick={() => patch({ changeId: c.id, status: 'accepted' })}>Принять</Button>
                   <Button size="sm" variant="secondary" onClick={() => patch({ changeId: c.id, status: 'rejected' })}>Отклонить</Button>
@@ -93,7 +93,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
                   <p className="mt-2 text-xs text-muted">Добавляйте только то, что соответствует вашему реальному опыту.</p>
                 </div>
               ) : (
-                <div className="whitespace-pre-wrap rounded-lg bg-canvas px-3.5 py-3 text-sm leading-relaxed">
+                <div className="user-text whitespace-pre-wrap rounded-lg bg-canvas px-3.5 py-3 text-sm leading-relaxed">
                   {c.kind === 'insert' ? <span className="diff-ins">{eff(c)}</span> : <Diff a={c.original} b={eff(c)} side="both" />}
                 </div>
               )}
@@ -108,7 +108,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="sm:p-5">
             <div className="mb-3 text-sm font-medium">Исходное резюме</div>
-            <div className="max-h-[32rem] overflow-auto text-[13px] leading-relaxed text-ink-2" data-testid="original-resume">
+            <div className="user-text max-h-[32rem] overflow-auto text-[13px] leading-relaxed text-ink-2" data-testid="original-resume">
               {origLines.map((l, i) => {
                 const rep = changes.find((c) => c.kind === 'replace' && c.lineIndex === i && c.status === 'accepted');
                 return <div key={i} className="min-h-[1.2em] whitespace-pre-wrap">{rep ? <Diff a={l} b={eff(rep)} side="del" /> : l}</div>;
@@ -117,7 +117,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
           </Card>
           <Card className="sm:p-5">
             <div className="mb-3 text-sm font-medium">Адаптированное резюме <span className="font-normal text-muted">· «{vacancyTitle}»</span></div>
-            <div className="max-h-[32rem] overflow-auto text-[13px] leading-relaxed text-ink-2" data-testid="adapted-resume">
+            <div className="user-text max-h-[32rem] overflow-auto text-[13px] leading-relaxed text-ink-2" data-testid="adapted-resume">
               {side.map((r, i) => <div key={i} className="min-h-[1.2em] whitespace-pre-wrap">{r.orig !== undefined ? <Diff a={r.orig} b={r.text} side="ins" /> : r.changed ? <span className="diff-ins">{r.text}</span> : r.text}</div>)}
             </div>
           </Card>

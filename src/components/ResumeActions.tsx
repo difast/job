@@ -13,7 +13,7 @@ export function ReanalyzeButton() {
 export function DeleteResumeButton() {
   const router = useRouter();
   return (
-    <Button variant="ghost" size="sm" onClick={async () => { if (!confirm('Удалить резюме? Проанализированные вакансии сохранятся.')) return; await fetch('/api/resume', { method: 'DELETE' }); router.refresh(); }}>
+    <Button variant="ghost" size="sm" className="w-full text-muted" onClick={async () => { if (!confirm('Удалить резюме? Проанализированные вакансии сохранятся.')) return; await fetch('/api/resume', { method: 'DELETE' }); router.refresh(); }}>
       <Icon name="trash" size={14} />Удалить резюме
     </Button>
   );

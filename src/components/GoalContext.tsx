@@ -6,6 +6,7 @@ import LevelPicker from './LevelPicker';
 import Modal from './Modal';
 import ProfessionPicker from './ProfessionPicker';
 import { Alert, Button, Spinner } from './ui';
+import { useToast } from './Toast';
 import type { LevelKey } from '@/lib/types';
 
 interface Goal { professionId: string; professionName: string; level: LevelKey }
@@ -15,6 +16,7 @@ export const useGoal = () => useContext(Ctx)!;
 /** Профессия — основа интерфейса: один диалог смены цели на всё приложение. */
 export function GoalProvider({ goal, children }: { goal: Goal; children: React.ReactNode }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [prof, setProf] = useState(goal.professionId);
   const [lvl, setLvl] = useState<LevelKey>(goal.level);
@@ -30,6 +32,7 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
     setBusy(false);
     if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить цель'); return; }
     setOpen(false); router.refresh();
+    toast('Цель обновлена — рекомендации и вопросы подобраны заново');
   }
 
   return (
@@ -49,6 +52,8 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
 
 export function ChangeGoalButton({ variant = 'secondary', size = 'sm', label = 'Изменить цель' }: { variant?: 'secondary' | 'ghost'; size?: 'sm' | 'md'; label?: string }) {
   const { openGoal } = useGoal();
-  const cls = `inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors ${size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-sm'} ${variant === 'secondary' ? 'border border-line-strong bg-white text-ink hover:bg-subtle' : 'text-ink-2 hover:bg-subtle hover:text-ink'}`;
+  const cls = variant === 'ghost'
+    ? 'inline-flex items-center gap-1.5 text-sm font-medium text-accent-600 transition-colors hover:text-accent-700'
+    : `inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-white font-medium text-ink transition-colors hover:bg-subtle ${size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-sm'}`;
   return <button type="button" onClick={openGoal} className={cls}><Icon name="edit" size={14} />{label}</button>;
 }

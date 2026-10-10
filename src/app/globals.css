@@ -46,7 +46,7 @@ body {
   font-family: var(--font-sans); font-size: 15px; line-height: 1.55; letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
-h1, h2, h3 { letter-spacing: -0.022em; }
+h1, h2, h3 { letter-spacing: -0.022em; font-family: var(--font-display); }
 .font-display { font-family: var(--font-display); font-feature-settings: "ss01"; }
 ::selection { background: var(--color-accent-100); }
 button { cursor: pointer; font: inherit; }
@@ -54,6 +54,8 @@ button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; border-radius: 6px; }
 textarea, input, select { font: inherit; }
 .tabular { font-variant-numeric: tabular-nums; }
+/* Пользовательский текст (вакансии, резюме, письма) может содержать очень длинные слова и ссылки */
+.user-text { overflow-wrap: anywhere; }
 
 /* ───────── Движение (умеренно, с учётом prefers-reduced-motion) ───────── */
 @keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -62,6 +64,8 @@ textarea, input, select { font: inherit; }
 @keyframes ring-in { from { stroke-dashoffset: var(--ring-c); } to { stroke-dashoffset: var(--ring-o); } }
 @keyframes bar-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.toast-in { animation: toast-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 
 .page-in { animation: page-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }

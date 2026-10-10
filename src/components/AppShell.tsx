@@ -7,106 +7,113 @@ import { useGoal } from './GoalContext';
 import { Logo, LogoMark, cx, initials } from './ui';
 import { LEVEL_SHORT, type LevelKey } from '@/lib/types';
 
-const NAV: { href: string; label: string; short: string; icon: IconName }[] = [
-  { href: '/dashboard', label: 'Главная', short: 'Главная', icon: 'home' },
-  { href: '/resume', label: 'Моё резюме', short: 'Резюме', icon: 'file' },
-  { href: '/vacancies', label: 'Вакансии', short: 'Вакансии', icon: 'briefcase' },
-  { href: '/cover-letter', label: 'Сопроводительное письмо', short: 'Письмо', icon: 'mail' },
-  { href: '/interview', label: 'Собеседование', short: 'Интервью', icon: 'mic' },
+// label — полное название, mid — для панели на средних экранах, short — для нижней мобильной навигации
+const NAV: { href: string; label: string; mid: string; short: string; icon: IconName }[] = [
+  { href: '/dashboard', label: 'Главная', mid: 'Главная', short: 'Главная', icon: 'home' },
+  { href: '/resume', label: 'Моё резюме', mid: 'Моё резюме', short: 'Резюме', icon: 'file' },
+  { href: '/vacancies', label: 'Вакансии', mid: 'Вакансии', short: 'Вакансии', icon: 'briefcase' },
+  { href: '/cover-letter', label: 'Сопроводительное письмо', mid: 'Письмо', short: 'Письмо', icon: 'mail' },
+  { href: '/interview', label: 'Собеседование', mid: 'Собеседование', short: 'Интервью', icon: 'mic' },
 ];
 
-function useLogout() {
-  const router = useRouter();
-  return async () => { await fetch('/api/auth/logout', { method: 'POST' }); router.push('/'); router.refresh(); };
+interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey; tier: 'free' | 'pro' }
+
+const isActive = (path: string, href: string) => path === href || path.startsWith(href + '/');
+
+function Avatar({ name, size = 34 }: { name: string; size?: number }) {
+  return <span className="flex shrink-0 items-center justify-center rounded-full bg-accent-500 font-semibold text-white" style={{ width: size, height: size, fontSize: size * 0.36 }}>{initials(name)}</span>;
 }
 
-function Avatar({ name, size = 32 }: { name: string; size?: number }) {
-  return <span className="flex shrink-0 items-center justify-center rounded-full bg-accent-100 font-semibold text-accent-700" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(name)}</span>;
-}
-
-/* ───────── Desktop: боковая панель ───────── */
-function Sidebar({ user, professionName, level, tier }: Props) {
-  const path = usePathname();
+/** Цель (профессия и уровень) — всегда на виду и меняется в один клик. */
+function GoalChip({ professionName, level, className }: { professionName: string; level: LevelKey; className?: string }) {
   const { openGoal } = useGoal();
-  const logout = useLogout();
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[272px] flex-col border-r border-line bg-white lg:flex">
-      <div className="px-5 pb-4 pt-5"><Link href="/dashboard"><Logo /></Link></div>
-      <nav className="flex-1 space-y-0.5 px-3" aria-label="Основное меню">
-        {NAV.map((n) => {
-          const active = path === n.href || path.startsWith(n.href + '/');
-          return (
-            <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
-              className={cx('group flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm transition-colors', active ? 'bg-subtle font-medium text-ink' : 'text-ink-2 hover:bg-subtle/70 hover:text-ink')}>
-              <Icon name={n.icon} size={18} className={active ? 'text-accent-600' : 'text-muted group-hover:text-ink-2'} />{n.label}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="space-y-2 border-t border-line p-3">
-        <button type="button" onClick={openGoal} className="group w-full rounded-lg border border-line bg-canvas p-3 text-left transition-colors hover:border-line-strong hover:bg-white" aria-label="Изменить цель">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted"><span>Ваша цель</span><Icon name="edit" size={13} className="opacity-0 transition-opacity group-hover:opacity-100" /></div>
-          <div className="mt-1.5 flex items-center gap-2"><Icon name="target" size={16} className="shrink-0 text-accent-600" /><span className="truncate text-sm font-medium" data-testid="target-profession">{professionName}</span></div>
-          <div className="mt-1 pl-6 text-[13px] text-ink-2" data-testid="target-level">{LEVEL_SHORT[level]}</div>
-        </button>
-        <Link href="/billing" data-testid="plan-link" className={cx('flex h-9 items-center justify-between rounded-lg px-3 text-[13px] transition-colors hover:bg-subtle', path.startsWith('/billing') ? 'bg-subtle' : '')}>
-          <span className="text-ink-2">Тариф: <b className="font-medium text-ink">{tier === 'pro' ? 'Pro' : 'Бесплатный'}</b></span>
-          {tier === 'free' ? <span className="font-medium text-accent-600">Улучшить</span> : <Icon name="chevron-right" size={14} className="text-muted" />}
-        </Link>
-        <div className="flex items-center gap-2.5 rounded-lg p-1.5">
-          <Avatar name={user.name} />
-          <div className="min-w-0 flex-1 leading-tight"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
-          <Link href="/settings" aria-label="Настройки" title="Настройки" className={cx('flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-subtle', path.startsWith('/settings') ? 'text-accent-600' : 'text-muted hover:text-ink')}><Icon name="sliders" size={17} /></Link>
-          <button onClick={logout} aria-label="Выйти" title="Выйти" className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-subtle hover:text-ink"><Icon name="logout" size={17} /></button>
-        </div>
-      </div>
-    </aside>
+    <button type="button" onClick={openGoal} aria-label={`Цель: ${professionName}, ${LEVEL_SHORT[level]}. Изменить`}
+      className={cx('flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/12 bg-white/[0.07] pl-3 pr-2.5 text-left text-[13px] text-milk transition-colors hover:bg-white/[0.13]', className)}>
+      <Icon name="target" size={15} className="shrink-0 text-accent-300" />
+      <span className="min-w-0 truncate font-medium" data-testid="target-profession">{professionName}</span><span className="shrink-0 text-milk/70"><span className="text-milk/45">· </span><span data-testid="target-level">{LEVEL_SHORT[level]}</span></span>
+      <Icon name="chevron-down" size={14} className="ml-0.5 shrink-0 text-milk/50" />
+    </button>
   );
 }
 
-/* ───────── Mobile / tablet: верхняя панель + нижняя навигация ───────── */
-function MobileBars({ user, professionName, level }: Props) {
+function UserMenu({ user, tier }: Pick<Props, 'user' | 'tier'>) {
+  const router = useRouter();
   const path = usePathname();
-  const { openGoal } = useGoal();
-  const logout = useLogout();
-  const [menu, setMenu] = useState(false);
+  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { setMenu(false); }, [path]);
+  useEffect(() => { setOpen(false); }, [path]);
   useEffect(() => {
-    if (!menu) return;
-    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setMenu(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [menu]);
-
+    if (!open) return;
+    const click = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', click); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key); };
+  }, [open]);
+  async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); router.push('/'); router.refresh(); }
+  const item = 'flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-ink transition-colors hover:bg-subtle';
   return (
-    <>
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2.5 border-b border-line bg-white/90 px-4 backdrop-blur-md sm:px-6 lg:hidden">
-        <Link href="/dashboard" aria-label="Главная" className="shrink-0"><LogoMark size={28} /></Link>
-        <button type="button" onClick={openGoal} aria-label="Изменить цель" className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-canvas px-3 py-1.5 text-left transition-colors hover:border-line-strong">
-          <Icon name="target" size={15} className="shrink-0 text-accent-600" />
-          <span className="min-w-0 truncate text-[13px] font-medium"><span data-testid="target-profession-m">{professionName}</span><span className="font-normal text-muted"> · {LEVEL_SHORT[level]}</span></span>
-          <Icon name="chevron-down" size={14} className="ml-auto shrink-0 text-muted" />
-        </button>
-        <div ref={ref} className="relative shrink-0">
-          <button onClick={() => setMenu(!menu)} aria-label="Профиль" aria-expanded={menu} className="rounded-full"><Avatar name={user.name} size={34} /></button>
-          {menu && (
-            <div className="fade-in absolute right-0 top-11 w-60 rounded-xl border border-line bg-white p-1.5 shadow-pop">
-              <div className="border-b border-line px-3 py-2.5"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
-              <Link href="/billing" className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="shield" size={16} className="text-muted" />Тариф и оплата</Link>
-              <Link href="/settings" className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="sliders" size={16} className="text-muted" />Настройки</Link>
-              <button onClick={logout} className="flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-subtle"><Icon name="logout" size={16} className="text-muted" />Выйти</button>
-            </div>
-          )}
+    <div ref={ref} className="relative shrink-0">
+      <button onClick={() => setOpen(!open)} aria-label="Профиль и настройки" aria-expanded={open} aria-haspopup="menu" className="flex items-center gap-2 rounded-full p-0.5 transition-opacity hover:opacity-90">
+        <Avatar name={user.name} />
+      </button>
+      {open && (
+        <div role="menu" className="fade-in absolute right-0 top-12 z-50 w-64 rounded-xl border border-line bg-white p-1.5 text-ink shadow-pop">
+          <div className="px-3 pb-2.5 pt-2"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
+          <div className="my-1 h-px bg-line" />
+          <Link role="menuitem" href="/billing" className={item} data-testid="plan-link">
+            <Icon name="shield" size={16} className="text-muted" /><span className="flex-1">Тариф: {tier === 'pro' ? 'Pro' : 'Бесплатный'}</span>
+            {tier === 'free' && <span className="text-xs font-medium text-accent-600">Улучшить</span>}
+          </Link>
+          <Link role="menuitem" href="/settings" className={item}><Icon name="sliders" size={16} className="text-muted" />Настройки</Link>
+          <div className="my-1 h-px bg-line" />
+          <button role="menuitem" onClick={logout} className={item}><Icon name="logout" size={16} className="text-muted" />Выйти</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function AppShell({ children, user, professionName, level, tier }: Props & { children: React.ReactNode }) {
+  const path = usePathname();
+  return (
+    <div className="min-h-dvh">
+      {/* Верхняя панель — графит, как первый экран лендинга */}
+      <header className="sticky top-0 z-40 bg-graphite text-milk">
+        <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-3 px-4 sm:px-8 lg:h-16 lg:gap-6">
+          <Link href="/dashboard" aria-label="Главная" className="shrink-0">
+            <span className="lg:hidden"><LogoMark size={30} inverted /></span>
+            <span className="hidden lg:block"><Logo inverted className="text-[16px] text-milk xl:text-[17px]" /></span>
+          </Link>
+          <nav aria-label="Основное меню" className="hidden h-full items-stretch lg:flex">
+            {NAV.map((n) => {
+              const active = isActive(path, n.href);
+              return (
+                <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
+                  className={cx('relative flex items-center whitespace-nowrap px-3 text-[14.5px] transition-colors xl:px-3.5', active ? 'font-medium text-milk' : 'text-milk/60 hover:text-milk')}>
+                  <span className="2xl:hidden">{n.mid}</span><span className="hidden 2xl:inline">{n.label}</span>
+                  {active && <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-accent-300" />}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2.5 lg:flex-none">
+            <GoalChip professionName={professionName} level={level} className="flex-1 lg:max-w-[320px] lg:flex-none" />
+            <UserMenu user={user} tier={tier} />
+          </div>
         </div>
       </header>
-      <nav aria-label="Основное меню" className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur-md lg:hidden">
+
+      <main key={path} className="page-in mx-auto w-full max-w-[1240px] px-4 pb-28 pt-7 sm:px-8 sm:pt-10 lg:pb-16">{children}</main>
+
+      {/* Мобильная навигация */}
+      <nav aria-label="Основное меню" data-testid="bottom-nav" className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-milk/95 backdrop-blur-md lg:hidden">
         <ul className="mx-auto grid max-w-xl grid-cols-5">
           {NAV.map((n) => {
-            const active = path === n.href || path.startsWith(n.href + '/');
+            const active = isActive(path, n.href);
             return (
               <li key={n.href}>
-                <Link href={n.href} aria-current={active ? 'page' : undefined} aria-label={n.label} className={cx('flex h-[58px] flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors', active ? 'text-accent-600' : 'text-muted')}>
+                <Link href={n.href} aria-current={active ? 'page' : undefined} aria-label={n.label} className={cx('flex h-[58px] flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors', active ? 'text-accent-600' : 'text-muted hover:text-ink')}>
                   <Icon name={n.icon} size={21} strokeWidth={active ? 1.9 : 1.6} />{n.short}
                 </Link>
               </li>
@@ -114,19 +121,6 @@ function MobileBars({ user, professionName, level }: Props) {
           })}
         </ul>
       </nav>
-    </>
-  );
-}
-
-interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey; tier: 'free' | 'pro' }
-
-export default function AppShell({ children, ...p }: Props & { children: React.ReactNode }) {
-  const path = usePathname();
-  return (
-    <div className="min-h-dvh lg:pl-[272px]">
-      <Sidebar {...p} />
-      <MobileBars {...p} />
-      <main key={path} className="page-in mx-auto w-full max-w-[1040px] px-4 pb-28 pt-7 sm:px-8 sm:pt-9 lg:pb-16 lg:pt-12">{children}</main>
     </div>
   );
 }

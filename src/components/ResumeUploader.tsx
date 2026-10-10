@@ -34,7 +34,7 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
     return (
       <div>
         {picker}
-        <Button variant="secondary" onClick={() => input.current?.click()} disabled={busy}>{busy ? <><Spinner />Анализируем…</> : <><Icon name="upload" size={16} />{label}</>}</Button>
+        <Button variant="secondary" className="w-full" onClick={() => input.current?.click()} disabled={busy}>{busy ? <><Spinner />Анализируем…</> : <><Icon name="upload" size={16} />{label}</>}</Button>
         {error && <Alert className="mt-3 max-w-md">{error}</Alert>}
       </div>
     );
@@ -44,7 +44,7 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
     <div
       onDragOver={(e) => { e.preventDefault(); if (!busy) setDrag(true); }} onDragLeave={() => setDrag(false)}
       onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f && !busy) upload(f); }}
-      className={cx('rounded-xl border bg-white p-6 shadow-card transition-colors sm:p-10', drag ? 'border-accent-500 bg-accent-50' : 'border-line')}>
+      className={cx('rounded-2xl border bg-white p-6 transition-colors sm:p-10', drag ? 'border-accent-500 bg-accent-50' : 'border-line')}>
       {picker}
       {busy ? (
         <div className="mx-auto flex max-w-md flex-col items-center py-4 text-center" role="status" aria-live="polite">

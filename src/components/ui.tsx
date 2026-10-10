@@ -5,7 +5,7 @@ import Icon, { type IconName } from './Icon';
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ');
 
 /* ───────── Кнопки ───────── */
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dark' | 'soft';
 type Size = 'sm' | 'md' | 'lg';
 
 export function buttonClass({ variant = 'primary', size = 'md', className }: { variant?: Variant; size?: Size; className?: string } = {}) {
@@ -15,6 +15,8 @@ export function buttonClass({ variant = 'primary', size = 'md', className }: { v
     variant === 'primary' && 'bg-accent-600 text-white shadow-[0_1px_2px_rgba(147,55,32,0.35),inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-accent-700',
     variant === 'secondary' && 'border border-line-strong bg-white text-ink hover:border-[#c2b8aa] hover:bg-subtle',
     variant === 'ghost' && 'text-ink-2 hover:bg-subtle hover:text-ink',
+    variant === 'dark' && 'bg-ink text-milk hover:bg-black',
+    variant === 'soft' && 'bg-accent-50 text-accent-700 hover:bg-accent-100',
     variant === 'danger' && 'border border-line-strong bg-white text-bad hover:border-[#e3b3af] hover:bg-bad-soft',
     className,
   );
@@ -30,13 +32,13 @@ export function LinkButton({ href, variant, size, className, children }: { href:
 
 /* ───────── Поверхности ───────── */
 export function Card({ children, className, as: T = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'li' }) {
-  return <T className={cx('rounded-xl border border-line bg-white p-5 shadow-card sm:p-6', className)}>{children}</T>;
+  return <T className={cx('rounded-2xl border border-line bg-white p-5 sm:p-6', className)}>{children}</T>;
 }
 
 export function CardTitle({ children, icon, action }: { children: ReactNode; icon?: IconName; action?: ReactNode }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
-      <h2 className="flex items-center gap-2 text-[13px] font-medium text-muted">{icon && <Icon name={icon} size={15} />}{children}</h2>
+      <h2 className="flex items-center gap-2 font-sans text-[13px] font-medium text-muted" style={{ letterSpacing: 0 }}>{icon && <Icon name={icon} size={15} />}{children}</h2>
       {action}
     </div>
   );
@@ -48,8 +50,8 @@ export function PageHeader({ title, subtitle, action, back }: { title: ReactNode
       {back && <Link href={back.href} className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><Icon name="arrow-left" size={14} />{back.label}</Link>}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-[26px] font-semibold leading-tight tracking-tight sm:text-[28px]">{title}</h1>
-          {subtitle && <p className="mt-1.5 max-w-2xl text-[15px] text-ink-2">{subtitle}</p>}
+          <h1 className="text-[28px] font-semibold leading-[1.15] tracking-[-0.025em] sm:text-[32px]">{title}</h1>
+          {subtitle && <div className="mt-2 max-w-2xl text-[15px] text-ink-2">{subtitle}</div>}
         </div>
         {action}
       </div>
@@ -59,7 +61,7 @@ export function PageHeader({ title, subtitle, action, back }: { title: ReactNode
 
 export function EmptyState({ icon = 'file', title, text, action }: { icon?: IconName; title: string; text: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-dashed border-line-strong bg-white px-6 py-14 text-center">
+    <div className="flex flex-col items-center rounded-2xl border border-dashed border-line-strong bg-white px-6 py-14 text-center">
       <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent-50 text-accent-600"><Icon name={icon} size={20} /></div>
       <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       <p className="mt-1.5 max-w-md text-sm text-ink-2">{text}</p>
@@ -88,8 +90,9 @@ export function Chip({ children }: { children: ReactNode }) {
 }
 
 /* ───────── Оценки ───────── */
-export const scoreColor = (n: number) => (n >= 75 ? '#4f8a5e' : n >= 50 ? '#c98a2e' : '#c0533d');
-export const scoreTone = (n: number) => (n >= 75 ? 'text-ok' : n >= 50 ? 'text-warn' : 'text-bad');
+export const scoreColor = (n: number) => (n >= 75 ? '#2f2b27' : n >= 50 ? '#c95a37' : '#8f2f26');
+export const scoreTone = (n: number) => (n >= 75 ? 'text-ink' : n >= 50 ? 'text-accent-600' : 'text-bad');
+export const scoreVerdict = (n: number) => (n >= 80 ? 'Сильный результат' : n >= 65 ? 'Хорошая основа' : n >= 45 ? 'Есть над чем поработать' : 'Требует доработки');
 
 export function ScoreRing({ value, size = 132, stroke = 8, suffix = '/ 100', label, color, track = '#eee8df' }: { value: number; size?: number; stroke?: number; suffix?: string; label?: string; color?: string; track?: string }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, o = c * (1 - value / 100);
@@ -137,13 +140,14 @@ export function EngineNote({ engine }: { engine: 'llm' | 'heuristic' }) {
   );
 }
 
-/* ───────── Сегментный переключатель ───────── */
-export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string }) {
+/* ───────── Переключатель-«таблетки» ───────── */
+export function Segmented<T extends string>({ value, onChange, options, label, size = 'md' }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; label: string; size?: 'sm' | 'md' }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-stone p-0.5">
+    <div role="radiogroup" aria-label={label} className="no-scrollbar flex gap-2 overflow-x-auto">
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={cx('h-8 rounded-md px-3.5 text-[13px] font-medium transition-all duration-150', value === o.value ? 'bg-white text-ink shadow-[0_1px_2px_rgba(28,26,23,0.12)]' : 'text-ink-2 hover:text-ink')}>
+          className={cx('shrink-0 whitespace-nowrap rounded-full font-medium transition-colors duration-150', size === 'sm' ? 'h-8 px-3.5 text-[13px]' : 'h-10 px-4 text-sm',
+            value === o.value ? 'bg-ink text-milk' : 'bg-stone text-ink-2 hover:bg-[#e2d9cc] hover:text-ink')}>
           {o.label}
         </button>
       ))}
