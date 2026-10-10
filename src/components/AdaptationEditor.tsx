@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { applyChanges, diffWords } from '@/lib/changes';
 import type { Change } from '@/lib/types';
 import Icon from './Icon';
-import { Alert, Badge, Button, buttonClass, Card, EmptyState } from './ui';
+import { Alert, Badge, Button, buttonClass, Card, EmptyState, Spinner } from './ui';
+import { request } from '@/lib/client';
+import { useToast } from './Toast';
 
 function Diff({ a, b, side }: { a: string; b: string; side: 'del' | 'ins' | 'both' }) {
   return (
@@ -23,18 +25,22 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const [pending, setPending] = useState<string | null>(null);
+  const toast = useToast();
   const finalText = useMemo(() => applyChanges(original, changes), [original, changes]);
   const accepted = changes.filter((c) => c.status === 'accepted').length;
   const origLines = useMemo(() => original.replace(/\r/g, '').split('\n'), [original]);
 
-  async function patch(body: object) {
-    setError('');
-    try {
-      const r = await fetch(`/api/adaptations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(d.error ?? 'Не удалось сохранить'); return; }
-      setChanges(d.changes);
-    } catch { setError('Нет соединения с сервером. Изменение не сохранено.'); }
+  // key — что именно сейчас сохраняется (id правки или 'all'): блокируем повторные нажатия
+  async function patch(body: object, key: string, done?: string): Promise<boolean> {
+    if (pending) return false;
+    setError(''); setPending(key);
+    const r = await request<{ changes: Change[] }>(`/api/adaptations/${id}`, { method: 'PATCH', json: body, timeoutMs: 30_000 });
+    setPending(null);
+    if (!r.ok) { setError(`${r.error} Изменение не сохранено — попробуйте ещё раз.`); return false; }
+    setChanges(r.data.changes);
+    if (done) toast(done);
+    return true;
   }
 
   const side = useMemo(() => {
@@ -58,10 +64,11 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
       <div className="sticky top-14 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8 lg:top-16">
         <p className="text-sm text-ink-2">Принято правок: <b className="tabular font-semibold text-ink" data-testid="accepted-count">{accepted}</b> из {changes.length}</p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={() => patch({ all: 'accepted' })}>Принять все</Button>
-          <Button variant="secondary" size="sm" onClick={() => patch({ all: 'rejected' })}>Отклонить все</Button>
+          <Button variant="secondary" size="sm" disabled={!!pending || accepted === changes.length} onClick={() => patch({ all: 'accepted' }, 'all', 'Все правки приняты')}>{pending === 'all' ? <Spinner /> : null}Принять все</Button>
+          <Button variant="secondary" size="sm" disabled={!!pending || changes.every((c) => c.status === 'rejected')} onClick={() => patch({ all: 'rejected' }, 'all', 'Все правки отклонены')}>Отклонить все</Button>
           <a href={`/api/adaptations/${id}/pdf`} download data-testid="download-pdf" className={buttonClass({ size: 'sm' })}><Icon name="download" size={14} />Скачать PDF</a>
         </div>
+        <p className="w-full text-xs text-muted">В PDF попадут только принятые правки{accepted ? '' : ' — сейчас это будет исходное резюме'}.</p>
       </div>
       {error && <Alert>{error}</Alert>}
 
@@ -76,9 +83,10 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
                   {c.status === 'rejected' && <Badge>Отклонено</Badge>}
                   {c.edited && <Badge>Отредактировано</Badge>}</div>
                 <div className="flex gap-1.5">
-                  <Button size="sm" variant={c.status === 'accepted' ? 'primary' : 'secondary'} onClick={() => patch({ changeId: c.id, status: 'accepted' })}>Принять</Button>
-                  <Button size="sm" variant="secondary" onClick={() => patch({ changeId: c.id, status: 'rejected' })}>Отклонить</Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setEditing(c.id); setDraft(eff(c)); }} aria-label="Редактировать"><Icon name="edit" size={14} /><span className="hidden sm:inline">Редактировать</span></Button>
+                  {pending === c.id && <Spinner className="self-center text-muted" />}
+                  <Button size="sm" variant={c.status === 'accepted' ? 'primary' : 'secondary'} disabled={!!pending || c.status === 'accepted'} aria-pressed={c.status === 'accepted'} onClick={() => patch({ changeId: c.id, status: 'accepted' }, c.id)}>Принять</Button>
+                  <Button size="sm" variant="secondary" disabled={!!pending || c.status === 'rejected'} aria-pressed={c.status === 'rejected'} onClick={() => patch({ changeId: c.id, status: 'rejected' }, c.id)}>Отклонить</Button>
+                  <Button size="sm" variant="ghost" disabled={!!pending || editing === c.id} onClick={() => { setEditing(c.id); setDraft(eff(c)); }} aria-label="Редактировать"><Icon name="edit" size={14} /><span className="hidden sm:inline">Редактировать</span></Button>
                 </div>
               </div>
               {editing === c.id ? (
@@ -86,9 +94,9 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
                   <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={Math.min(8, draft.split('\n').length + 1)} aria-label="Редактирование текста"
                     className="w-full rounded-lg border border-line-strong p-3 text-sm leading-relaxed outline-none focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]" />
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    <Button size="sm" onClick={async () => { await patch({ changeId: c.id, edited: draft, status: 'accepted' }); setEditing(null); }}>Сохранить и принять</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Отмена</Button>
-                    {c.edited && <Button size="sm" variant="ghost" onClick={async () => { await patch({ changeId: c.id, edited: null }); setEditing(null); }}>Вернуть предложение</Button>}
+                    <Button size="sm" disabled={!!pending || !draft.trim()} onClick={async () => { if (await patch({ changeId: c.id, edited: draft, status: 'accepted' }, c.id, 'Правка сохранена и принята')) setEditing(null); }}>{pending === c.id ? <><Spinner />Сохраняем…</> : 'Сохранить и принять'}</Button>
+                    <Button size="sm" variant="ghost" disabled={!!pending} onClick={() => setEditing(null)}>Отмена</Button>
+                    {c.edited && <Button size="sm" variant="ghost" disabled={!!pending} onClick={async () => { if (await patch({ changeId: c.id, edited: null }, c.id, 'Возвращено исходное предложение')) setEditing(null); }}>Вернуть предложение</Button>}
                   </div>
                   <p className="mt-2 text-xs text-muted">Добавляйте только то, что соответствует вашему реальному опыту.</p>
                 </div>
@@ -126,8 +134,8 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
-        <span className="text-sm text-ink-2">Резюме готово — осталось письмо.</span>
-        <Link href={`/cover-letter?vacancy=${vacancyId}`} className={buttonClass({ size: 'lg' })}>Создать сопроводительное письмо<Icon name="arrow-right" size={16} /></Link>
+        <span className="text-sm text-ink-2">{accepted ? 'Резюме готово — осталось письмо.' : 'Примите подходящие правки, затем подготовьте письмо.'} Письмо учтёт принятые правки.</span>
+        <Link href={`/cover-letter?vacancy=${vacancyId}&create=1`} className={buttonClass({ size: 'lg' })}>Создать сопроводительное письмо<Icon name="arrow-right" size={16} /></Link>
       </div>
       <textarea hidden readOnly value={finalText} data-testid="final-text" />
     </div>

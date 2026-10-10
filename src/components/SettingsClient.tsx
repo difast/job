@@ -1,4 +1,5 @@
 'use client';
+import { request } from '@/lib/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -26,10 +27,11 @@ export default function SettingsClient({ name, email, professionName, level, tie
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true); setError('');
-    const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }) });
+    const r = await request('/api/profile', { method: 'PATCH', json: { name: n.trim() }, timeoutMs: 30_000 });
     setBusy(false);
-    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить'); return; }
+    if (!r.ok) { setError(`${r.error} Введённое имя сохранено в поле.`); return; }
     toast('Имя сохранено'); router.refresh();
   }
   async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); router.push('/'); router.refresh(); }

@@ -7,8 +7,9 @@ import LevelPicker from './LevelPicker';
 import ProfessionPicker from './ProfessionPicker';
 import { Alert, Button, Logo, Spinner, cx } from './ui';
 import { LEVEL_SHORT, type LevelKey } from '@/lib/types';
+import { request, safeNext } from '@/lib/client';
 
-export default function Onboarding({ name }: { name: string }) {
+export default function Onboarding({ name, next }: { name: string; next?: string }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [profId, setProfId] = useState<string | null>(null);
@@ -18,11 +19,11 @@ export default function Onboarding({ name }: { name: string }) {
   const [error, setError] = useState('');
 
   async function finish() {
-    if (!profId || !level) return;
+    if (!profId || !level || busy) return;
     setBusy(true); setError('');
-    const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ professionId: profId, level }) });
-    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить. Попробуйте ещё раз.'); setBusy(false); return; }
-    router.push('/dashboard');
+    const r = await request('/api/profile', { method: 'PATCH', json: { professionId: profId, level }, timeoutMs: 30_000 });
+    if (!r.ok) { setError(r.error); setBusy(false); return; }
+    router.push(safeNext(next) ?? '/dashboard');
     router.refresh();
   }
 

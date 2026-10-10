@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVIEW_TYPE_LABELS, type AnswerFeedback, type InterviewType } from '@/lib/types';
 import Icon from './Icon';
 import { Alert, Button, ScoreRing, Segmented, Skeleton, Spinner, cx, scoreVerdict } from './ui';
+import { request } from '@/lib/client';
+import { useConfirm } from './Confirm';
 
 interface Q { id: string; text: string; category: string; difficulty: number; sampleAnswer: string; keyPoints: string[]; lastScore: number | null }
 const DIFF: Record<number, string> = { 1: 'Базовый', 2: 'Средний', 3: 'Сложный' };
@@ -29,12 +31,28 @@ export default function InterviewClient() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  const confirm = useConfirm();
+  const unsent = !fb && answer.trim().length > 0;
 
   const reset = () => { setAnswer(''); setFb(null); setHint(null); setError(''); };
   const load = useCallback((t: InterviewType) => {
     setQs(null); setLoadError(false); setI(0); setScores([]); setDone(false); setAnswer(''); setFb(null); setHint(null); setError('');
-    fetch(`/api/interview/questions?type=${t}`).then(async (r) => { if (!r.ok) throw new Error(); setQs((await r.json()).questions ?? []); }).catch(() => setLoadError(true));
+    request<{ questions: Q[] }>(`/api/interview/questions?type=${t}`, { timeoutMs: 30_000 }).then((r) => (r.ok ? setQs(r.data.questions ?? []) : setLoadError(true)));
   }, []);
+
+  // Неотправленный ответ не теряется молча при закрытии вкладки
+  useEffect(() => {
+    if (!unsent) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [unsent]);
+
+  async function changeType(t: InterviewType) {
+    if (t === type || busy) return;
+    if ((unsent || (scores.length > 0 && !done)) && !(await confirm({ title: 'Сменить тип собеседования?', text: 'Текущая тренировка будет сброшена: прогресс и неотправленный ответ не сохранятся. Оценки уже отправленных ответов останутся в истории.', confirm: 'Сменить тип' }))) return;
+    setType(t);
+  }
   useEffect(() => { load(type); }, [type, load]);
 
   const q = qs?.[i];
@@ -45,13 +63,15 @@ export default function InterviewClient() {
   async function submit() {
     if (!q || busy || answer.trim().length < 3) return;
     setBusy(true); setError('');
-    try {
-      const r = await fetch('/api/interview/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.id, answer }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(d.error ?? 'Не удалось оценить ответ. Попробуйте ещё раз.'); setBusy(false); return; }
-      setFb(d.feedback); setScores((s) => [...s, d.feedback.score]); setHint(null);
-    } catch { setError('Нет соединения с сервером. Ответ не отправлен.'); }
+    const r = await request<{ feedback: AnswerFeedback }>('/api/interview/answer', { method: 'POST', json: { questionId: q.id, answer }, timeoutMs: 90_000 });
     setBusy(false);
+    if (!r.ok) { setError(`${r.error} Ваш ответ сохранён в поле — можно отправить ещё раз.`); return; }
+    setFb(r.data.feedback); setScores((s) => [...s, r.data.feedback.score]); setHint(null);
+  }
+
+  async function skip() {
+    if (answer.trim().length > 20 && !(await confirm({ title: 'Пропустить вопрос?', text: 'Написанный ответ не будет отправлен на разбор и пропадёт.', confirm: 'Пропустить' }))) return;
+    next();
   }
 
   function next() {
@@ -65,7 +85,7 @@ export default function InterviewClient() {
   return (
     <div className="mx-auto max-w-[820px] space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented label="Тип собеседования" value={type} onChange={setType} options={(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((t) => ({ value: t, label: INTERVIEW_TYPE_LABELS[t] }))} />
+        <Segmented label="Тип собеседования" value={type} onChange={changeType} options={(Object.keys(INTERVIEW_TYPE_LABELS) as InterviewType[]).map((t) => ({ value: t, label: INTERVIEW_TYPE_LABELS[t] }))} />
         {scores.length > 0 && !done && <span className="text-sm text-ink-2">Средний балл: <b className="tabular font-semibold text-ink">{avg}</b></span>}
       </div>
 
@@ -127,7 +147,7 @@ export default function InterviewClient() {
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-4 text-[13px] text-muted">
                     <span className="tabular">{words} {words % 10 === 1 && words % 100 !== 11 ? 'слово' : 'слов'}{words > 0 && words < 40 ? ' · лучше 40–150' : ''}</span>
-                    <button type="button" onClick={next} className="font-medium text-ink-2 transition-colors hover:text-ink">Пропустить</button>
+                    <button type="button" onClick={skip} disabled={busy} className="font-medium text-ink-2 transition-colors hover:text-ink">Пропустить</button>
                   </div>
                   <div className="flex items-center gap-3"><span className="hidden text-xs text-muted sm:inline">Ctrl + Enter</span>
                     <Button size="lg" onClick={submit} disabled={busy || answer.trim().length < 3}>{busy ? <><Spinner />Разбираем ответ…</> : 'Ответить'}</Button></div>

@@ -48,7 +48,7 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
               })}
             </ul>
             <div className="mt-5"><AdaptButton id={v.id} hasAdaptation={!!v.adaptation} /></div>
-            <Link href={`/cover-letter?vacancy=${v.id}`} className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink"><Icon name="mail" size={15} />Сопроводительное письмо</Link>
+            <Link href={`/cover-letter?vacancy=${v.id}&create=1`} className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink"><Icon name="mail" size={15} />Создать сопроводительное письмо</Link>
           </section>
         </aside>
       </div>

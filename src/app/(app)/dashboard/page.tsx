@@ -9,6 +9,8 @@ import { Meter, ScoreRing, buttonClass, cx, scoreVerdict } from '@/components/ui
 import Icon, { type IconName } from '@/components/Icon';
 import { ChangeGoalButton } from '@/components/GoalContext';
 import ResumeUploader from '@/components/ResumeUploader';
+import { ReanalyzeButton } from '@/components/ResumeActions';
+import { AdaptButton } from '@/components/VacancyActions';
 
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10, m100 = n % 100;
@@ -29,12 +31,16 @@ export default async function Dashboard() {
   const profession = user.profession!.name;
   const { tier, until } = currentTier(user);
 
-  // Следующий шаг на пути «резюме → вакансия → адаптация → письмо → собеседование»
-  const next: { step: number; title: string; text: string; href: string; cta: string; icon: IconName } | null =
+  const stale = !!resume && (resume.professionId !== user.professionId || resume.level !== user.level);
+
+  // Следующий шаг на пути «резюме → вакансия → адаптация → письмо → собеседование».
+  // action: 'link' — кнопка открывает раздел; 'adapt' / 'reanalyze' — кнопка сразу выполняет действие.
+  const next: { step: number; title: string; text: string; href: string; cta: string; icon: IconName; action?: 'adapt' | 'reanalyze' } | null =
     !resume ? null
+    : stale ? { step: 1, icon: 'refresh', action: 'reanalyze', title: 'Обновите анализ резюме под новую цель', text: `Оценка сделана для прежней профессии или уровня. Пересчитаем её для «${profession}», ${LEVEL_SHORT[user.level as LevelKey]} — займёт несколько секунд.`, href: '/resume', cta: 'Обновить анализ' }
     : !lastVacancy ? { step: 2, icon: 'search', title: 'Проверьте резюме на реальной вакансии', text: 'Вставьте описание вакансии — покажем процент соответствия, сильные стороны и пробелы.', href: '/vacancies', cta: 'Проанализировать вакансию' }
-    : !lastVacancy.adaptation ? { step: 3, icon: 'layers', title: `Адаптируйте резюме под «${lastVacancy.title}»`, text: `Соответствие сейчас ${lastVacancy.matchScore}%. Предложим правки формулировок — без выдуманных фактов.`, href: `/vacancies/${lastVacancy.id}`, cta: 'Адаптировать резюме' }
-    : lastVacancy._count.coverLetters === 0 ? { step: 4, icon: 'mail', title: 'Подготовьте сопроводительное письмо', text: `Письмо под «${lastVacancy.title}» на основе вашего резюме — в одном из трёх стилей.`, href: `/cover-letter?vacancy=${lastVacancy.id}`, cta: 'Создать письмо' }
+    : !lastVacancy.adaptation ? { step: 3, icon: 'layers', action: 'adapt', title: `Адаптируйте резюме под «${lastVacancy.title}»`, text: `Соответствие сейчас ${lastVacancy.matchScore}%. Предложим правки формулировок — без выдуманных фактов.`, href: `/vacancies/${lastVacancy.id}`, cta: 'Адаптировать резюме' }
+    : lastVacancy._count.coverLetters === 0 ? { step: 4, icon: 'mail', title: 'Подготовьте сопроводительное письмо', text: `Письмо под «${lastVacancy.title}» на основе вашего резюме — в одном из трёх стилей.`, href: `/cover-letter?vacancy=${lastVacancy.id}&create=1`, cta: 'Создать письмо' }
     : attempts === 0 ? { step: 5, icon: 'mic', title: 'Потренируйтесь перед собеседованием', text: `Вопросы для «${profession}», уровень ${LEVEL_SHORT[user.level as LevelKey]}. Ответьте — разберём ответ по ключевым пунктам.`, href: '/interview', cta: 'Начать тренировку' }
     : { step: 5, icon: 'briefcase', title: 'Всё готово к отклику', text: 'Проанализируйте следующую вакансию или продолжите тренировку собеседования.', href: '/vacancies', cta: 'Добавить вакансию' };
 
@@ -77,7 +83,7 @@ export default async function Dashboard() {
           </nav>
           <Link href="/billing" className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-5 transition-colors hover:border-line-strong">
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-medium">{tier === 'pro' ? 'Тариф Pro активен' : 'Тариф Pro'}</div>
+              <div className="text-[15px] font-medium">{tier === 'pro' ? 'Clymly Pro активен' : 'Clymly Pro — 499 ₽ в месяц'}</div>
               <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `До ${until.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', timeZone: 'Europe/Moscow' })}` : 'Для активного поиска работы'}</div>
               <div className="mt-2.5 text-sm font-medium text-accent-600">{tier === 'pro' ? 'Управлять тарифом' : 'Подробнее'}</div>
             </div>
@@ -101,13 +107,18 @@ export default async function Dashboard() {
                     </div>
                     <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone text-ink sm:flex"><Icon name={next.icon} size={20} /></span>
                   </div>
-                  <Link href={next.href} className={buttonClass({ size: 'lg', className: 'mt-6 w-full' })}>{next.cta}<Icon name="arrow-right" size={16} /></Link>
+                  <div className="mt-6">
+                    {next.action === 'reanalyze' ? <ReanalyzeButton size="lg" label={next.cta} className="w-full" />
+                      : next.action === 'adapt' && lastVacancy ? <AdaptButton id={lastVacancy.id} hasAdaptation={false} />
+                      : <Link href={next.href} className={buttonClass({ size: 'lg', className: 'w-full' })}>{next.cta}<Icon name="arrow-right" size={16} /></Link>}
+                  </div>
+                  {next.action === 'adapt' && lastVacancy && <Link href={`/vacancies/${lastVacancy.id}`} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-ink-2 hover:text-ink">Сначала посмотреть анализ вакансии<Icon name="arrow-right" size={14} /></Link>}
                 </section>
               )}
 
               <section className="rounded-2xl border border-line bg-white" aria-labelledby="score-h">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
-                  <div className="min-w-0"><h2 id="score-h" className="text-[17px] font-semibold tracking-[-0.01em]">Оценка резюме</h2><div className="truncate text-[13px] text-muted" data-testid="resume-file-name">{resume.fileName}</div></div>
+                  <div className="min-w-0"><h2 id="score-h" className="text-[17px] font-semibold tracking-[-0.01em]">Оценка резюме</h2><div className="truncate text-[13px] text-muted" data-testid="resume-file-name">{resume.fileName}{stale ? ' · оценка для прежней цели' : ''}</div></div>
                   <Link href="/resume" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-accent-600 hover:text-accent-700">Полный анализ<Icon name="arrow-right" size={14} /></Link>
                 </div>
                 <div className="flex flex-col gap-7 px-6 py-6 sm:flex-row sm:items-center sm:gap-10">

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Icon from './Icon';
 import { Logo, cx } from './ui';
 
-const LINKS: [string, string][] = [['Возможности', '/#features'], ['Как это работает', '/#how'], ['Профессии', '/#professions']];
+const LINKS: [string, string][] = [['Возможности', '/#features'], ['Как это работает', '/#how'], ['Профессии', '/#professions'], ['Тарифы', '/#pricing']];
 const wrap = 'mx-auto w-full max-w-[1240px] px-5 sm:px-8';
 
 export default function LandingHeader({ signedIn }: { signedIn: boolean }) {

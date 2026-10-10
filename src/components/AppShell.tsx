@@ -62,7 +62,7 @@ function UserMenu({ user, tier }: Pick<Props, 'user' | 'tier'>) {
           <div className="px-3 pb-2.5 pt-2"><div className="truncate text-sm font-medium">{user.name}</div><div className="truncate text-xs text-muted">{user.email}</div></div>
           <div className="my-1 h-px bg-line" />
           <Link role="menuitem" href="/billing" className={item} data-testid="plan-link">
-            <Icon name="shield" size={16} className="text-muted" /><span className="flex-1">Тариф: {tier === 'pro' ? 'Pro' : 'Бесплатный'}</span>
+            <Icon name="shield" size={16} className="text-muted" /><span className="flex-1">Тариф: {tier === 'pro' ? 'Clymly Pro' : 'Free'}</span>
             {tier === 'free' && <span className="text-xs font-medium text-accent-600">Улучшить</span>}
           </Link>
           <Link role="menuitem" href="/settings" className={item}><Icon name="sliders" size={16} className="text-muted" />Настройки</Link>

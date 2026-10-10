@@ -5,26 +5,27 @@ import { useState } from 'react';
 import Icon from './Icon';
 import { ProductPreview } from './landing';
 import { Alert, Button, Logo, Spinner } from './ui';
+import { request, safeNext } from '@/lib/client';
 
 const input = 'h-11 w-full rounded-lg border border-line-strong bg-white px-3.5 text-[15px] outline-none transition-shadow placeholder:text-muted focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]';
 
-export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+export default function AuthForm({ mode, next: nextRaw }: { mode: 'login' | 'register'; next?: string }) {
   const router = useRouter();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const isReg = mode === 'register';
+  const next = safeNext(nextRaw);
+  const q = next ? `?next=${encodeURIComponent(next)}` : '';
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true); setError('');
     const f = new FormData(e.currentTarget);
-    try {
-      const res = await fetch(`/api/auth/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(f)) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data.error ?? 'Что-то пошло не так. Попробуйте ещё раз.'); setBusy(false); return; }
-      router.push(isReg || data.onboarded === false ? '/onboarding' : '/dashboard');
-      router.refresh();
-    } catch { setError('Нет соединения с сервером. Проверьте интернет и повторите.'); setBusy(false); }
+    const r = await request<{ onboarded?: boolean }>(`/api/auth/${mode}`, { method: 'POST', json: Object.fromEntries(f), timeoutMs: 30_000 });
+    if (!r.ok) { setError(r.error); setBusy(false); return; }
+    router.push(isReg || r.data.onboarded === false ? `/onboarding${q}` : next ?? '/dashboard');
+    router.refresh();
   }
 
   return (
@@ -34,6 +35,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <div className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center py-10">
           <h1 className="text-[28px] font-semibold tracking-tight">{isReg ? 'Создайте аккаунт' : 'С возвращением'}</h1>
           <p className="mt-2 text-[15px] text-ink-2">{isReg ? 'Подготовьтесь к поиску работы под вашу профессию. Это бесплатно.' : 'Войдите, чтобы продолжить подготовку.'}</p>
+          {next?.startsWith('/billing') && <Alert tone="info" className="mt-5">{isReg ? 'После регистрации и выбора профессии откроется страница подключения Clymly Pro.' : 'После входа откроется страница подключения Clymly Pro.'}</Alert>}
           <form onSubmit={submit} className="mt-8 space-y-4" noValidate={false}>
             {isReg && (
               <label className="block text-sm font-medium">Имя
@@ -58,7 +60,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           {isReg && <p className="mt-4 text-xs leading-relaxed text-muted">Нажимая «Зарегистрироваться», вы принимаете <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-ink">Пользовательское соглашение</Link> и подтверждаете, что ознакомились с <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-ink">Политикой конфиденциальности</Link>.</p>}
           <p className="mt-6 text-sm text-ink-2">
             {isReg ? 'Уже есть аккаунт? ' : 'Нет аккаунта? '}
-            <Link href={isReg ? '/login' : '/register'} className="font-medium text-accent-600 hover:underline">{isReg ? 'Войти' : 'Зарегистрироваться'}</Link>
+            <Link href={`${isReg ? '/login' : '/register'}${q}`} className="font-medium text-accent-600 hover:underline">{isReg ? 'Войти' : 'Зарегистрироваться'}</Link>
           </p>
         </div>
       </main>

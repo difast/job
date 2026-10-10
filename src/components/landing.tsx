@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Icon from './Icon';
 import { Logo, Meter, ScoreRing, cx } from './ui';
 import { COMPANY } from '@/lib/legal';
+import { formatRub, getPlan } from '@/lib/billing/plans';
 
 export { default as LandingHeader } from './LandingHeader';
 
@@ -221,6 +222,77 @@ export function Professions({ signedIn }: { signedIn: boolean }) {
   );
 }
 
+/* ───────── Тарифы ───────── */
+export function Pricing({ signedIn }: { signedIn: boolean }) {
+  const free = getPlan('free')!;
+  const pro = getPlan('pro-month')!;
+  const quarter = getPlan('pro-quarter')!;
+  // Pro оформляется на странице «Тариф и оплата»; без аккаунта — сначала регистрация, затем возврат к выбранному тарифу
+  const buy = (planId: string) => (signedIn ? `/billing?plan=${planId}` : `/register?next=${encodeURIComponent(`/billing?plan=${planId}`)}`);
+  const check = (dark: boolean) => <Icon name="check" size={17} strokeWidth={2.3} className={cx('mt-0.5 shrink-0', dark ? 'text-accent-300' : 'text-accent-600')} />;
+  const price = (v: string, period?: string, dark = false) => (
+    <div className="mt-7 flex flex-wrap items-baseline gap-x-2"><span className="font-display tabular whitespace-nowrap text-[44px] font-semibold leading-none tracking-[-0.04em]">{v}</span>{period && <span className={cx('text-[15px]', dark ? 'text-milk/70' : 'text-ink-2')}>{period}</span>}</div>
+  );
+  return (
+    <section id="pricing" className={cx(wrap, 'scroll-mt-20 pb-20 sm:pb-28')} aria-labelledby="pricing-h">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-accent-600">Тарифы</div>
+          <h2 id="pricing-h" className="font-display mt-4 text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[44px]">Начните бесплатно</h2>
+        </div>
+        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro можно оплачивать помесячно или сразу за 3 месяца — так выгоднее.</p>
+      </div>
+      <div className="mt-12 grid gap-7 lg:grid-cols-3 lg:gap-5">
+        <article className="flex flex-col rounded-[28px] border border-line-strong bg-white p-7 sm:p-9" data-testid="pricing-free">
+          <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">{free.name}</h3>
+          <p className="mt-1.5 min-h-[44px] text-[15px] text-ink-2">{free.description}</p>
+          {price('0 ₽')}
+          <p className="mt-2 text-[13px] text-muted">Без оплаты и привязки карты</p>
+          <ul className="mt-7 flex-1 space-y-3 text-[15px]">{free.features.map((f) => <li key={f} className="flex gap-3">{check(false)}{f}</li>)}</ul>
+          <Link href={signedIn ? '/dashboard' : '/register'} className="mt-9 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-stone px-7 text-[16px] font-semibold text-ink transition-colors hover:bg-[#e2d9cc]">
+            {signedIn ? 'Открыть кабинет' : 'Начать бесплатно'}
+          </Link>
+        </article>
+
+        <article className="relative flex flex-col overflow-hidden rounded-[28px] bg-ink p-7 text-milk sm:p-9" data-testid="pricing-pro">
+          <svg aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-64 w-64" viewBox="0 0 200 200" fill="none"><circle cx="100" cy="100" r="70" stroke={ACCENT} strokeWidth="44" opacity="0.55" /></svg>
+          <div className="relative flex flex-wrap items-center gap-2.5">
+            <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">{pro.name}</h3>
+            <span className="rounded-full bg-milk/15 px-2.5 py-0.5 text-[12px] font-medium text-milk">1 месяц</span>
+          </div>
+          <p className="relative mt-1.5 min-h-[44px] text-[15px] text-milk/70">{pro.description}</p>
+          <div className="relative">{price(formatRub(pro.price), pro.period, true)}</div>
+          <p className="relative mt-2 text-[13px] text-milk/60">Оплата за 1 месяц</p>
+          <ul className="relative mt-7 flex-1 space-y-3 text-[15px]">{pro.features.map((f) => <li key={f} className="flex gap-3">{check(true)}{f}</li>)}</ul>
+          <Link href={buy(pro.id)} className="relative mt-9 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-accent-600 px-7 text-[16px] font-semibold text-white transition-colors hover:bg-accent-700">
+            Подключить Pro<Icon name="arrow-right" size={18} />
+          </Link>
+        </article>
+
+        <article className="relative flex flex-col rounded-[28px] border-2 border-accent-600 bg-white p-7 sm:p-9" data-testid="pricing-pro-quarter">
+          <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">Экономия 19%</span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">Pro на 3 месяца</h3>
+            <span className="rounded-full bg-accent-50 px-2.5 py-0.5 text-[12px] font-medium text-accent-700">3 месяца</span>
+          </div>
+          <p className="mt-1.5 min-h-[44px] text-[15px] text-ink-2">{quarter.description}</p>
+          {price(formatRub(quarter.price), quarter.period)}
+          <p className="mt-2 text-[13px] text-ink-2"><b className="font-semibold text-accent-700">{quarter.note}</b> · один платёж за 3 месяца</p>
+          <ul className="mt-7 flex-1 space-y-3 text-[15px]">{quarter.features.map((f) => <li key={f} className="flex gap-3">{check(false)}{f}</li>)}</ul>
+          <Link href={buy(quarter.id)} className="mt-9 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-ink px-7 text-[16px] font-semibold text-milk transition-colors hover:bg-black">
+            Оформить на 3 месяца<Icon name="arrow-right" size={18} />
+          </Link>
+        </article>
+      </div>
+      <p className="mt-5 text-center text-[13px] leading-relaxed text-muted">
+        Pro на 1 месяц и на 3 месяца отличаются только сроком и способом оплаты: возможности одинаковые.
+        {!signedIn && <> Уже есть аккаунт? <Link href={`/login?next=${encodeURIComponent('/billing')}`} className="font-medium text-ink underline underline-offset-2">Войти</Link>.</>}
+        <br className="hidden sm:block" /> Оплата — на защищённой странице ЮKassa. Условия — в <Link href="/terms#tariffs" className="underline underline-offset-2 hover:text-ink">Пользовательском соглашении</Link>.
+      </p>
+    </section>
+  );
+}
+
 /* ───────── Финальный призыв ───────── */
 export function FinalCta({ signedIn }: { signedIn: boolean }) {
   return (
@@ -245,7 +317,7 @@ export function FinalCta({ signedIn }: { signedIn: boolean }) {
 
 /* ───────── Футер ───────── */
 export function LandingFooter() {
-  const links: [string, string][] = [['Возможности', '/#features'], ['Войти', '/login'], ['Регистрация', '/register']];
+  const links: [string, string][] = [['Возможности', '/#features'], ['Тарифы', '/#pricing'], ['Войти', '/login'], ['Регистрация', '/register']];
   const docs: [string, string][] = [['Пользовательское соглашение', '/terms'], ['Политика конфиденциальности', '/privacy'], ['Согласие на обработку данных', '/consent']];
   return (
     <footer className="border-t border-line">

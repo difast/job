@@ -4,10 +4,11 @@ import { cx } from './ui';
 import { formatRub, type Plan } from '@/lib/billing/plans';
 
 /** Карточка тарифа — общая для лендинга и страницы оплаты. */
-export function PlanCard({ plan, action, current }: { plan: Plan; action: ReactNode; current?: boolean }) {
+export function PlanCard({ plan, action, current, selected }: { plan: Plan; action: ReactNode; current?: boolean; selected?: boolean }) {
   return (
-    <div className={cx('relative flex flex-col rounded-xl border bg-white p-6 shadow-card', plan.highlight ? 'border-accent-600 shadow-[0_0_0_1px_var(--color-accent-600)]' : 'border-line')} data-testid={`plan-${plan.id}`}>
-      {plan.highlight && <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white">Популярный</span>}
+    <div id={`plan-${plan.id}`} className={cx('relative flex scroll-mt-24 flex-col rounded-xl border bg-white p-6 shadow-card', selected || (plan.highlight && selected === undefined) ? 'border-accent-600 shadow-[0_0_0_1px_var(--color-accent-600)]' : 'border-line')} data-testid={`plan-${plan.id}`} data-selected={selected ? 'true' : undefined}>
+      {selected ? <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white">Вы выбрали</span>
+        : plan.highlight && selected === undefined && <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white">Популярный</span>}
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-[17px] font-semibold tracking-tight">{plan.name}</h3>
         {current && <span className="rounded-md bg-ok-soft px-2 py-0.5 text-xs font-medium text-ok">Ваш тариф</span>}

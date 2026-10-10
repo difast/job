@@ -1,4 +1,5 @@
 'use client';
+import { request } from '@/lib/client';
 import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useState } from 'react';
 import Icon from './Icon';
@@ -27,10 +28,11 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
   const changed = prof !== goal.professionId || lvl !== goal.level;
 
   async function save() {
+    if (busy) return;
     setBusy(true); setError('');
-    const r = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ professionId: prof, level: lvl }) });
+    const r = await request('/api/profile', { method: 'PATCH', json: { professionId: prof, level: lvl }, timeoutMs: 120_000 });
     setBusy(false);
-    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? 'Не удалось сохранить цель'); return; }
+    if (!r.ok) { setError(r.error); return; }
     setOpen(false); router.refresh();
     toast('Цель обновлена — рекомендации и вопросы подобраны заново');
   }
@@ -39,7 +41,7 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
     <Ctx.Provider value={{ openGoal }}>
       {children}
       <Modal open={open} onClose={close} title="Ваша цель" description="От цели зависят оценка резюме, требования и вопросы для собеседования."
-        footer={<><Button variant="ghost" onClick={close}>Отмена</Button><Button onClick={save} disabled={busy || !changed}>{busy && <Spinner />}{busy ? 'Обновляем рекомендации…' : 'Сохранить'}</Button></>}>
+        footer={<><Button variant="ghost" onClick={close} disabled={busy}>Отмена</Button><Button onClick={save} disabled={busy || !changed}>{busy && <Spinner />}{busy ? 'Обновляем рекомендации…' : 'Сохранить'}</Button></>}>
         <ProfessionPicker value={prof} onChange={(id) => setProf(id)} maxHeight="38dvh" />
         <h3 className="mb-3 mt-7 text-sm font-medium">Уровень</h3>
         <LevelPicker value={lvl} onChange={setLvl} />

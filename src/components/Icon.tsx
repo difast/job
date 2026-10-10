@@ -16,6 +16,7 @@ const P: Record<string, string[]> = {
   'x-circle': ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'm9.5 9.5 5 5m0-5-5 5'],
   target: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z', 'M12 12h.01'],
   'chevron-right': ['m9 6 6 6-6 6'],
+  'chevron-left': ['m15 6-6 6 6 6'],
   'chevron-down': ['m6 9 6 6 6-6'],
   'arrow-right': ['M5 12h14', 'm13 6 6 6-6 6'],
   'arrow-left': ['M19 12H5', 'm11 6-6 6 6 6'],

@@ -3,27 +3,39 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import Icon from './Icon';
 import { Alert, Button, Spinner, cx } from './ui';
+import { useToast } from './Toast';
+import { request } from '@/lib/client';
+
+const MAX_MB = 5;
+/** Проверка файла до отправки — ошибка видна сразу, без ожидания сервера. */
+function checkFile(f: File): string | null {
+  if (!/\.(pdf|docx|txt)$/i.test(f.name)) return 'Поддерживаются файлы PDF и DOCX. Если резюме в другом формате, сохраните его как PDF.';
+  if (f.size > MAX_MB * 1024 * 1024) return `Файл больше ${MAX_MB} МБ. Сожмите его или сохраните без изображений.`;
+  if (f.size === 0) return 'Файл пустой. Выберите другой файл.';
+  return null;
+}
 
 /** Загрузка резюме. hero — большая карточка с drag&drop (пустое состояние), button — кнопка. */
 export default function ResumeUploader({ variant = 'hero', label = 'Загрузить резюме', goalLabel, redirect = true }: { variant?: 'hero' | 'button'; label?: string; goalLabel?: string; redirect?: boolean }) {
   const router = useRouter();
+  const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState('');
 
   async function upload(file: File) {
+    const bad = checkFile(file);
+    if (bad) { setError(bad); return; }
     setBusy(true); setError('');
     const fd = new FormData();
     fd.append('file', file);
-    try {
-      const r = await fetch('/api/resume', { method: 'POST', body: fd });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(data.error ?? 'Не удалось загрузить файл. Попробуйте ещё раз.'); setBusy(false); return; }
-      if (redirect) router.push('/resume');
-      router.refresh();
-    } catch { setError('Нет соединения с сервером. Проверьте интернет и повторите.'); }
+    const r = await request('/api/resume', { method: 'POST', body: fd, timeoutMs: 120_000 });
     setBusy(false);
+    if (!r.ok) { setError(r.error); return; }
+    toast(variant === 'button' ? 'Новая версия резюме загружена и проанализирована' : 'Резюме загружено и проанализировано');
+    if (redirect && window.location.pathname !== '/resume') router.push('/resume');
+    router.refresh();
   }
 
   const picker = (

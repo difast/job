@@ -20,10 +20,21 @@ let html = await land.text();
 ok(land.status === 200, 'лендинг / открывается без авторизации');
 for (const t of ['Подготовьте резюме.', 'Подготовьтесь к\u00a0собеседованию.', 'Получите работу.', 'Попробовать бесплатно', 'Как это работает', 'Выберите профессию', 'Загрузите резюме', 'Подготовьтесь к вакансии', 'Анализ резюме', 'Резюме под вакансию', 'Сопроводительное письмо', 'Подготовка к собеседованию', 'не только IT', 'Выбрать свою профессию', 'Готовы подготовиться к поиску работы?', 'Пользовательское соглашение', 'Политика конфиденциальности', 'Согласие на обработку данных']) ok(html.includes(t), `лендинг: «${t}»`);
 ok(html.includes('href="/register"') && html.includes('href="/login"'), 'лендинг: кнопки ведут на регистрацию и вход');
+// Тарифы на лендинге
+{
+  const t = html.replace(/[\u00a0\u202f]/g, ' ');
+  const must = ['id="pricing"', 'Тарифы', 'Free', 'Для знакомства с платформой', '0 ₽', 'Анализ резюме', 'Адаптация резюме под вакансию', 'Создание сопроводительного письма', 'Подготовка к собеседованию',
+    'Clymly Pro', '499 ₽', 'в месяц', 'Для активного поиска работы', 'Все основные инструменты Clymly', 'Анализ и улучшение резюме', 'Адаптация резюме под вакансии', 'Создание сопроводительных писем', 'Подготовка к собеседованию и AI-тренажёр',
+    'Pro на 3 месяца', '1 190 ₽', 'за 3 месяца', '≈ 397 ₽ в месяц', 'Всё из тарифа Pro', 'Экономия 19% по сравнению с оплатой Pro помесячно', 'Типичный срок поиска работы — выгоднее помесячной оплаты', 'Оформить на 3 месяца',
+    'Начать бесплатно', 'Подключить Pro', 'href="/register?next=%2Fbilling%3Fplan%3Dpro-month"', 'href="/register?next=%2Fbilling%3Fplan%3Dpro-quarter"', 'href="/login?next=%2Fbilling"', 'href="/#pricing"'];
+  const miss = must.filter((x) => !t.includes(x));
+  ok(miss.length === 0, `лендинг: блок тарифов Free / Clymly Pro и CTA${miss.length ? ' — нет: ' + miss.join(', ') : ''}`);
+  ok(!/годов|в год|безлимит|приоритетн/i.test(t), 'лендинг: нет годового тарифа и непроверенных обещаний');
+}
 for (const p of ['/terms', '/privacy', '/consent', '/login', '/register']) ok((await req(p)).status === 200, `публичная страница ${p}`);
 const REQ = ['ООО «Интегро»', '1257700559269', '9734021152', '773401001', '123592, город Москва, ул. Маршала Катукова, д. 22 к. 1', 'ежедневно с 10:00 до 20:00 по московскому времени'];
 const docChecks = {
-  '/terms': ['Пользовательское соглашение (публичная оферта)', 'Тарифы', 'Порядок оплаты', 'Автопродление', 'ЮKassa', '490', '1 190', 'О защите прав потребителей'],
+  '/terms': ['Пользовательское соглашение (публичная оферта)', 'Тарифы', 'Порядок оплаты', 'Автопродление', 'ЮKassa', '499', '1 190', 'О защите прав потребителей'],
   '/privacy': ['Политика конфиденциальности', '152-ФЗ', 'Файлы cookie', 'Трансграничная передача', 'Права пользователя', '10 (десяти) рабочих дней'],
   '/consent': ['Согласие на обработку персональных данных', 'статьёй 9', 'отозвать согласие', 'сбор, запись, систематизация'],
 };
@@ -64,7 +75,11 @@ for (const p of ['/terms', '/privacy', '/consent']) { const t = await (await req
 const email = `e2e_${Date.now()}@example.com`;
 
 // Авторизация
-ok((await req('/dashboard')).status === 307, 'неавторизованный доступ к /dashboard → редирект на логин');
+{ const r0 = await req('/dashboard'); ok(r0.status === 307 && (r0.headers.get('location') ?? '').includes('/login?next=%2Fdashboard'), 'неавторизованный доступ к /dashboard → вход с возвратом в раздел'); }
+html = await (await req('/register?next=/billing')).text();
+ok(html.includes('откроется страница подключения Clymly Pro') && html.includes('href="/login?next=%2Fbilling"'), 'регистрация из «Подключить Pro»: подсказка и сохранение адреса возврата');
+html = await (await req('/register?next=//evil.example')).text();
+ok(!/href="[^"]*evil\.example/.test(html) && !html.includes('откроется страница'), 'адрес возврата на внешний сайт игнорируется');
 ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: '123', consent: true })).status === 400, 'короткий пароль отклонён');
 ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123' })).status === 400, 'регистрация без согласия на обработку ПД отклонена');
 ok((await post('/api/auth/register', { name: 'Анна Иванова', email, password: 'password123', consent: false })).status === 400, 'согласие должно быть явным (false отклонено)');
@@ -112,7 +127,8 @@ page = await (await req('/dashboard')).text();
 ok(page.includes('resume.docx') && page.includes('Структура') && page.includes('Достижения') && page.includes('Полный анализ') && page.includes('Что улучшить в первую очередь'), 'дашборд после загрузки: файл, оценка с разбивкой, топ-рекомендации, переход к анализу');
 ok(page.includes('Следующий шаг') && page.includes('Проверьте резюме на реальной вакансии'), 'следующий шаг после загрузки: анализ вакансии');
 page = await (await req('/resume')).text();
-ok(['Сильные стороны', 'Что улучшить', 'Недостающие навыки', 'Улучшить резюме', 'Заменить резюме', 'Что дальше', 'Последний анализ', 'сегодня', 'Соответствие профессии'].every((t) => page.includes(t)), 'страница резюме: оценка, сильные стороны, что улучшить, недостаёт, статус анализа, CTA');
+ok(['Сильные стороны', 'Что улучшить', 'Недостающие навыки', 'Улучшить под вакансию', 'Загрузить новую версию', 'Удалить резюме', 'Последний анализ', 'сегодня', 'Соответствие профессии'].every((t) => page.includes(t)), 'страница резюме: оценка, сильные стороны, что улучшить, недостаёт, статус анализа, CTA');
+ok(!page.includes('Что дальше'), 'страница резюме: без дублирующего блока «Что дальше»');
 
 // Вакансия
 const vacancy = readFileSync('tests/fixtures/vacancy.txt', 'utf8');
@@ -133,7 +149,7 @@ r = await post(`/api/vacancies/${vid}/adapt`, {});
 d = await jsonOf(r);
 ok(r.status === 200 && d.id && d.changes >= 1, `адаптация создана (правок: ${d.changes})`);
 page = await (await req('/dashboard')).text();
-ok(page.includes('Подготовьте сопроводительное письмо'), 'следующий шаг после адаптации: письмо');
+ok(page.includes('Подготовьте сопроводительное письмо') && page.includes(`/cover-letter?vacancy=${vid}&amp;create=1`), 'следующий шаг после адаптации: письмо (кнопка сразу создаёт его)');
 const aid = d.id;
 page = await (await req(`/vacancies/${vid}/adapt`)).text();
 ok(page.includes('Исходное резюме') && page.includes('Адаптированное резюме'), 'показаны две версии резюме');
@@ -199,14 +215,16 @@ ok(page.includes('Всё готово к отклику') && /ответ(а|ов
 
 // Оплата (тестовый режим — заглушка ЮKassa)
 page = await (await req('/billing')).text();
-ok(['Тариф и оплата', 'Бесплатный', 'Pro на 3 месяца', 'Тестовый режим', 'Оформить'].every((t) => page.includes(t)), 'страница тарифов: текущий тариф, тарифы, тестовый режим');
+ok(['Тариф и оплата', 'Free', 'Clymly Pro', '499', 'Тестовый режим', 'Подключить Pro', 'не ограничивают функции'].every((t) => page.replace(/[\u00a0\u202f]/g, ' ').includes(t)), 'страница тарифов: текущий тариф, Free и Clymly Pro за 499 ₽, тестовый режим');
+page = (await (await req('/billing?plan=pro-quarter')).text()).replace(/[\u00a0\u202f]/g, ' ');
+ok(page.includes('Вы выбрали тариф «Clymly Pro на 3 месяца» — 1 190 ₽ за 3 месяца') && page.includes('Оформить на 3 месяца') && page.includes('data-selected="true"'), 'ссылка с лендинга: выбранный тариф «Pro на 3 месяца» подсвечен на странице оплаты');
 ok((await post('/api/billing/checkout', { planId: 'free' })).status === 400, 'бесплатный тариф нельзя «оплатить»');
 ok((await post('/api/billing/checkout', { planId: 'nope' })).status === 400, 'несуществующий тариф отклонён');
 d = await jsonOf(await post('/api/billing/checkout', { planId: 'pro-month' }));
 ok(d.paymentId && d.confirmationUrl === `/pay/stub/${d.paymentId}`, 'создание платежа → ссылка на страницу оплаты');
 const payId = d.paymentId;
 page = await (await req(d.confirmationUrl)).text();
-ok(page.includes('Тестовая оплата') && page.includes('490'), 'страница тестовой оплаты показывает сумму');
+ok(page.includes('Тестовая оплата') && page.includes('499'), 'страница тестовой оплаты показывает сумму 499 ₽');
 d = await jsonOf(await post(`/api/billing/stub/${payId}`, { action: 'succeed' }));
 ok(d.redirect === `/billing?payment=${payId}`, 'тестовая оплата подтверждена → возврат на тарифы');
 ok((await post(`/api/billing/stub/${payId}`, { action: 'succeed' })).status === 409, 'повторное подтверждение платежа отклонено (Pro не продлевается дважды)');
@@ -216,6 +234,14 @@ const cancelId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pr
 await post(`/api/billing/stub/${cancelId}`, { action: 'cancel' });
 page = await (await req(`/billing?payment=${cancelId}`)).text();
 ok(page.includes('Оплата не завершена') && page.includes('Отменён'), 'отмена оплаты: деньги не списаны, статус «Отменён»');
+{
+  const qId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pro-quarter' }))).paymentId;
+  const qp = (await (await req(`/pay/stub/${qId}`)).text()).replace(/[\u00a0\u202f]/g, ' ');
+  ok(qp.includes('1 190'), 'оплата за 3 месяца: страница оплаты показывает 1 190 ₽');
+  ok((await post(`/api/billing/stub/${qId}`, { action: 'succeed' })).status === 200, 'оплата за 3 месяца проходит через тот же платёжный поток');
+  page = await (await req(`/billing?payment=${qId}`)).text();
+  ok(page.includes('Оплата прошла успешно') && page.includes('Clymly Pro на 3 месяца'), 'после оплаты за 3 месяца: Pro продлён, платёж в истории');
+}
 d = await jsonOf(await post('/api/billing/webhook', { event: 'payment.succeeded', object: { id: 'stub_x' } }));
 ok(d.ignored === 'test-mode', 'webhook в тестовом режиме игнорирует уведомления');
 ok((await post('/api/billing/webhook', {})).status === 400, 'webhook: некорректное тело → 400');
@@ -247,11 +273,13 @@ ok((await post('/api/cover-letters', { vacancyId: vid, style: 'short' })).status
 ok((await post(`/api/billing/stub/${unpaidId}`, { action: 'succeed' })).status === 404, 'нельзя подтвердить чужой платёж');
 ok((await req(`/pay/stub/${unpaidId}`)).status === 404 || !(await (await req(`/pay/stub/${unpaidId}`)).text()).includes('Оплатить'), 'чужая страница оплаты недоступна');
 page = await (await req('/billing')).text();
-ok(page.includes('Бесплатный') && !page.includes('Оплата прошла успешно'), 'тариф другого пользователя не изменился');
+ok(page.includes('Free') && !page.includes('Оплата прошла успешно'), 'тариф другого пользователя не изменился');
 cookie = saved;
 r = await post('/api/auth/login', { email, password: 'wrong-pass' });
 ok(r.status === 401, 'неверный пароль отклонён');
 ok((await post('/api/auth/login', { email, password: 'password123' })).status === 200, 'повторный вход');
+{ const r1 = await req('/login?next=/billing'); ok(r1.status === 307 && (r1.headers.get('location') ?? '').endsWith('/billing'), 'вошедший пользователь со ссылки «Подключить Pro» попадает на /billing'); }
+{ const r2 = await req('/login?next=//evil.example'); ok(r2.status === 307 && (r2.headers.get('location') ?? '').endsWith('/dashboard'), 'внешний адрес возврата заменён на кабинет'); }
 
 console.log(failed ? `\n${failed} проверок провалено` : '\nВсе проверки пройдены');
 process.exit(failed ? 1 : 0);

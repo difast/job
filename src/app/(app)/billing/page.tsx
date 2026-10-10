@@ -11,9 +11,10 @@ import CheckoutButton from '@/components/CheckoutButton';
 
 const fmtDate = (d: Date) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Moscow' });
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string; plan?: string }> }) {
   let user = await requirePageUser();
-  const { payment: returnedId } = await searchParams;
+  const { payment: returnedId, plan: chosenId } = await searchParams;
+  const chosen = chosenId ? getPlan(chosenId) : null;
 
   // Пользователь вернулся со страницы оплаты: сверяем статус с провайдером
   let returned = null;
@@ -31,16 +32,18 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       <PageHeader title="Тариф и оплата" subtitle="Выберите тариф. Оплата проходит на защищённой странице ЮKassa." />
 
       {test && <Alert tone="info" className="mb-6">Тестовый режим: приём платежей через ЮKassa ещё не подключён, деньги не списываются. Тарифы пока не ограничивают функции сервиса.</Alert>}
-      {returned?.status === 'succeeded' && <Alert tone="ok" className="mb-6">Оплата прошла успешно. Тариф Pro активен до {until ? fmtDate(until) : '—'}</Alert>}
+      {returned?.status === 'succeeded' && <Alert tone="ok" className="mb-6">Оплата прошла успешно. Тариф Clymly Pro активен до {until ? fmtDate(until) : '—'}</Alert>}
       {returned?.status === 'canceled' && <Alert tone="warn" className="mb-6">Оплата не завершена — деньги не списаны. Можно попробовать ещё раз.</Alert>}
       {returned?.status === 'pending' && <Alert tone="info" className="mb-6">Ждём подтверждения оплаты от банка. Обычно это занимает до минуты — обновите страницу.</Alert>}
+
+      {chosen && chosen.price > 0 && !returned && <Alert tone="info" className="mb-6">{`Вы выбрали тариф «${chosen.name}» — ${formatRub(chosen.price)} ${chosen.period}. Нажмите кнопку на карточке тарифа ниже, чтобы перейти к оплате.`}</Alert>}
 
       <Card className="mb-8">
         <CardTitle icon="shield">Текущий тариф</CardTitle>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{tier === 'pro' ? 'Pro' : 'Бесплатный'}</div>
-            <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : 'Базовый доступ ко всем разделам'}</div>
+            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{tier === 'pro' ? 'Clymly Pro' : 'Free'}</div>
+            <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : 'Все функции Clymly доступны'}</div>
           </div>
           {tier === 'pro' && <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Icon name="check-circle" size={16} />Активен</span>}
         </div>
@@ -50,10 +53,10 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         <h2 id="plans" className="mb-4 text-lg font-semibold tracking-tight">Тарифы</h2>
         <div className="grid gap-4 md:grid-cols-3 md:gap-5">
           {PLANS.map((p) => (
-            <PlanCard key={p.id} plan={p} current={p.tier === tier && (p.tier === 'free' || p.id === 'pro-month')}
+            <PlanCard key={p.id} plan={p} selected={chosen && chosen.price > 0 ? chosen.id === p.id : undefined} current={p.tier === tier && (p.tier === 'free' || p.id === 'pro-month')}
               action={p.price === 0
-                ? <div className="flex h-11 items-center justify-center rounded-lg border border-line text-sm text-muted">{tier === 'free' ? 'Подключён' : 'Включён в Pro'}</div>
-                : <CheckoutButton planId={p.id} variant={p.highlight ? 'primary' : 'secondary'} label={tier === 'pro' ? 'Продлить' : 'Оформить'} />} />
+                ? <div className="flex h-11 items-center justify-center rounded-lg border border-line text-sm text-muted">{tier === 'free' ? 'Ваш текущий тариф' : 'Входит в Clymly Pro'}</div>
+                : <CheckoutButton planId={p.id} variant={(chosen && chosen.price > 0 ? chosen.id === p.id : p.highlight) ? 'primary' : 'secondary'} label={p.id === 'pro-month' ? (tier === 'pro' ? 'Продлить на месяц' : 'Подключить Pro') : (tier === 'pro' ? 'Продлить на 3 месяца' : 'Оформить на 3 месяца')} />} />
           ))}
         </div>
         <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted"><Icon name="lock" size={13} className="mt-0.5 shrink-0" /><span>Банковские карты, СБП и другие способы оплаты — через ЮKassa. Данные карты не передаются и не хранятся у нас. Оплачивая тариф, вы принимаете условия <Link href="/terms#tariffs" className="underline underline-offset-2 hover:text-ink">Пользовательского соглашения</Link>, включая порядок оплаты, продления и возврата.</span></p>

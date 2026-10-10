@@ -7,7 +7,10 @@ const isPrivate = (p: string) => PRIVATE.some((x) => p === x || p.startsWith(x +
 
 export function middleware(req: NextRequest) {
   if (!req.cookies.has('session') && isPrivate(req.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL('/login', req.url));
+    const url = new URL('/login', req.url);
+    const { pathname, search } = req.nextUrl;
+    if (pathname !== '/onboarding') url.searchParams.set('next', pathname + search); // после входа — обратно в нужный раздел
+    return NextResponse.redirect(url);
   }
   return NextResponse.next();
 }

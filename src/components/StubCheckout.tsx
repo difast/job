@@ -3,17 +3,18 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Icon from './Icon';
 import { Alert, Button, Spinner } from './ui';
+import { request } from '@/lib/client';
 
 export default function StubCheckout({ paymentId, amountLabel }: { paymentId: string; amountLabel: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState<'succeed' | 'cancel' | null>(null);
   const [error, setError] = useState('');
   async function act(action: 'succeed' | 'cancel') {
+    if (busy) return;
     setBusy(action); setError('');
-    const r = await fetch(`/api/billing/stub/${paymentId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { setError(d.error ?? 'Не удалось обработать платёж'); setBusy(null); return; }
-    router.push(d.redirect); router.refresh();
+    const r = await request<{ redirect: string }>(`/api/billing/stub/${paymentId}`, { method: 'POST', json: { action }, timeoutMs: 30_000 });
+    if (!r.ok) { setError(r.error); setBusy(null); return; }
+    router.push(r.data.redirect); router.refresh();
   }
   return (
     <div className="space-y-2.5">
