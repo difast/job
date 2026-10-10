@@ -85,6 +85,10 @@ model User {
   emailVerifiedAt DateTime? // когда e-mail подтверждён по ссылке из письма
   hasPassword     Boolean     @default(true) // false — аккаунт создан партнёром (JobToo), пароль ещё не задан
   source          String? // откуда пришёл пользователь: null — регистрация в Clymly, "jobtoo" — переход из JobToo
+  // Маркетинговая атрибуция (src/lib/marketing): first-touch — первый визит по ссылке до регистрации,
+  // last-touch — последний визит перед регистрацией. null — источник неизвестен.
+  firstVisitId    String?
+  signupVisitId   String?
   createdAt       DateTime    @default(now())
 
   sessions        Session[]
@@ -117,6 +121,9 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  createdAt DateTime @default(now()) // время входа — для учёта активности
+
+  @@index([userId, createdAt])
 }
 
 // ───────── Рабочие данные ─────────
@@ -209,6 +216,51 @@ model Payment {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  @@index([userId, createdAt])
+  @@index([createdAt, status])
+}
+
+// ───────── Маркетинг: ссылки и визиты (атрибуция переход → регистрация → оплата) ─────────
+
+// Маркетинговая ссылка: https://clymly.ru/go/<slug>. Метки по умолчанию дополняются UTM из ссылки.
+model MarketingLink {
+  id          String   @id @default(cuid())
+  slug        String   @unique // instagram, reels-0310, blogger-anna …
+  name        String
+  target      String   @default("/") // только внутренний путь
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  visits Visit[]
+}
+
+// Переход по маркетинговой ссылке. Без IP и без отпечатка устройства; visitorId — случайный id из first-party cookie
+// (90 дней, только если пользователь не отказался от аналитических cookie). userId — после регистрации или входа.
+model Visit {
+  id           String         @id @default(cuid())
+  createdAt    DateTime       @default(now())
+  linkId       String?
+  link         MarketingLink? @relation(fields: [linkId], references: [id], onDelete: SetNull)
+  visitorId    String?
+  userId       String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  referrerHost String?
+  landing      String
+  device       String? // desktop | mobile | tablet
+  os           String?
+  browser      String?
+  lang         String?
+
+  @@index([createdAt])
+  @@index([linkId, createdAt])
+  @@index([visitorId])
   @@index([userId, createdAt])
 }
 

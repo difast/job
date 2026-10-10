@@ -5,6 +5,8 @@ import { ApiError, handler, json } from '@/lib/http';
 import { LEGAL_EDITION } from '@/lib/legal';
 import { after } from 'next/server';
 import { sendVerification } from '@/lib/email-verify';
+import { cookies } from 'next/headers';
+import { VISITOR_COOKIE, attributeSignup } from '@/lib/marketing/track';
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Введите имя').max(80),
@@ -19,6 +21,8 @@ export const POST = handler(async (req: Request) => {
   if (await db.user.findUnique({ where: { email: data.email } })) throw new ApiError(409, 'Пользователь с таким e-mail уже существует');
   const user = await db.user.create({ data: { name: data.name, email: data.email, passwordHash: await hashPassword(data.password), pdConsentAt: new Date(), pdConsentVer: LEGAL_EDITION } });
   await createSession(user.id);
+  // Маркетинговая атрибуция: визиты этого браузера по ссылкам /go/… связываются с новым аккаунтом
+  await attributeSignup(user.id, (await cookies()).get(VISITOR_COOKIE)?.value);
   // Письмо с подтверждением — после ответа, чтобы не задерживать регистрацию
   after(() => sendVerification(user).then(() => undefined));
   return json({ ok: true });

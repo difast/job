@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { requirePageUser } from '@/lib/auth';
-import { isAdmin, parseFilters, report } from '@/lib/partners/analytics';
+import { requireAdminPage } from '@/lib/admin/auth';
+import { parseFilters, report } from '@/lib/partners/analytics';
 import { PageHeader, buttonClass, cx } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +25,7 @@ function Funnel({ title, steps }: { title: string; steps: { event: string; label
 }
 
 export default async function IntegrationsAdmin({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const user = await requirePageUser();
-  if (!isAdmin(user.email)) notFound();
+  await requireAdminPage();
   const sp = await searchParams;
   const f = parseFilters(sp);
   const r = await report(f);

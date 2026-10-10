@@ -46,6 +46,9 @@ src/app/(app)         dashboard, резюме,          src/lib          auth, d
                       собеседование, настройки    scripts/         e2e и UI-проверки
 ```
 
+## Админка
+* `/admin` — обзор, пользователи, платежи, маркетинг (ссылки `/go/<slug>`, UTM, атрибуция first/last-touch), интеграции (JobToo). Доступ — `ADMIN_EMAILS`. Подробности и определения метрик — `docs/admin.md`.
+
 ## Подтверждение e-mail
 * После регистрации отправляется письмо со ссылкой `/verify-email?token=…` (24 часа, одноразовая, в БД только хеш). Повторная отправка — из кабинета (лимит 3 письма за 10 минут).
 * SMTP — `src/lib/mail.ts`: `SMTP_HOST`, `SMTP_PORT=465` (TLS с первого байта, сертификат проверяется), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`. Без настроек письма не отправляются, а напоминание не показывается.
@@ -64,6 +67,8 @@ npm test                                         # юнит-тесты логи�
 npm run build && npx next start -p 3100 &        # затем:
 BASE_URL=http://localhost:3100 npm run e2e       # сквозной сценарий через HTTP (~110 проверок, включая лендинг)
 BASE_URL=http://localhost:3100 npm run ui-check  # сценарий в реальном Chromium + скриншоты, mobile/tablet
+ADMIN=admin_e2e@example.com BASE_URL=http://localhost:3100 node scripts/admin-e2e.mjs   # админка и атрибуция (сервер с ADMIN_EMAILS=admin_e2e@example.com)
+ADMIN=admin_e2e@example.com BASE_URL=http://localhost:3100 node scripts/admin-ui.mjs    # админка в Chromium (desktop/mobile)
 # сертификат тестового SMTP: openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/smtp-key.pem -out /tmp/smtp-cert.pem -days 30 -subj /CN=localhost -addext subjectAltName=DNS:localhost
 # сервер дополнительно: NODE_EXTRA_CA_CERTS=/tmp/smtp-cert.pem SMTP_HOST=localhost SMTP_PORT=465 SMTP_USER=mailer SMTP_PASSWORD=mailer-pass SMTP_FROM=no-reply@clymly.ru; тест: SMTP_CERT=/tmp/smtp-cert.pem SMTP_KEY=/tmp/smtp-key.pem
 # интеграция с JobToo: сервер с JOBTOO_INTEGRATION_ENABLED=1 JOBTOO_API_URL=http://localhost:4100/api/partner.php JOBTOO_OUTBOUND_SECRET=test-out JOBTOO_INBOUND_SECRET=test-in ADMIN_EMAILS=admin_e2e@example.com

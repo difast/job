@@ -43,6 +43,8 @@ async function main() {
     await prisma.interviewQuestion.upsert({ where: { id }, update: data, create: { id, ...data } });
   }
   await prisma.interviewQuestion.deleteMany({ where: { id: { notIn: ids } } });
+  // Маркетинговая ссылка для Instagram (https://clymly.ru/go/instagram). Существующие настройки не перезаписываем.
+  await prisma.marketingLink.upsert({ where: { slug: 'instagram' }, update: {}, create: { slug: 'instagram', name: 'Instagram', utmSource: 'instagram', utmMedium: 'social' } });
   console.log(`Seeded: ${await prisma.profession.count()} professions, ${await prisma.interviewQuestion.count()} questions`);
 }
 

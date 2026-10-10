@@ -3,6 +3,7 @@ import '@fontsource-variable/inter/index.css';
 import '@fontsource-variable/onest/index.css';
 import './globals.css';
 import { BRAND, BRAND_COLORS, SITE_URL } from '@/lib/brand';
+import AnalyticsConsent from '@/components/AnalyticsConsent';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,7 +20,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, them
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>{children}<AnalyticsConsent /></body>
     </html>
   );
 }
