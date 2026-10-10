@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 // @ts-expect-error — .mjs без типов
 import { normalizeDbUrl } from '../scripts/db-url.mjs';
 
-const ENC = 'postgresql://gen_user:zUtaa%3Fm.1%40%7Dtqy@31554316da12ce153e1bdd37.twc1.net:5432/default_db?sslmode=require';
+// Вымышленные данные с теми же спецсимволами, что бывают в паролях Timeweb
+const ENC = 'postgresql://app_user:Pa%3Fss.1%40%7Dword@db.example.com:5432/app_db?sslmode=require';
 
 test('DATABASE_URL: раскодированный пароль (как сохраняет Timeweb) кодируется', () => {
-  assert.equal(normalizeDbUrl('postgresql://gen_user:zUtaa?m.1@}tqy@31554316da12ce153e1bdd37.twc1.net:5432/default_db?sslmode=require'), ENC);
+  assert.equal(normalizeDbUrl('postgresql://app_user:Pa?ss.1@}word@db.example.com:5432/app_db?sslmode=require'), ENC);
 });
 test('DATABASE_URL: уже закодированная строка не меняется', () => {
   assert.equal(normalizeDbUrl(ENC), ENC);

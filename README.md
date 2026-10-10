@@ -63,4 +63,4 @@ LinkedIn и трекер откликов не реализованы.
 ## Бренд
 * Единый источник — `src/lib/brand.ts`: название, домен, `SITE_URL`, цвета и геометрия знака. Логотип — компонент `Logo`/`LogoMark` в `src/components/ui.tsx` (две «y» — классы `brand-y1`/`brand-y2` на токенах из `globals.css`).
 * Иконки (favicon.ico, icon.svg, apple-icon.png, PWA 192/512/maskable) генерируются из одного SVG: `npx tsx scripts/generate-icons.ts`. При замене иконок увеличьте `V` в `src/app/manifest.ts`.
-* `APP_URL=https://clymly.ru` — canonical, Open Graph, sitemap, robots и возврат после оплаты. `LEGACY_HOSTS` — старые домены для 301-редиректа.
+* `APP_URL=https://clymly.ru` — canonical, Open Graph, sitemap, robots и возврат после оплаты.
