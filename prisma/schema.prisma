@@ -71,20 +71,21 @@ model InterviewQuestion {
 // ───────── Пользователи ─────────
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  name         String
-  passwordHash String
-  professionId String?
-  profession   Profession? @relation(fields: [professionId], references: [id])
-  level        String?
-  plan         String      @default("free") // free | pro
-  planUntil    DateTime? // до какого момента оплачен pro
-  pdConsentAt  DateTime? // когда дано согласие на обработку персональных данных (отдельная отметка при регистрации)
-  pdConsentVer String? // редакция документа согласия
-  hasPassword  Boolean     @default(true) // false — аккаунт создан партнёром (JobToo), пароль ещё не задан
-  source       String? // откуда пришёл пользователь: null — регистрация в Clymly, "jobtoo" — переход из JobToo
-  createdAt    DateTime    @default(now())
+  id              String      @id @default(cuid())
+  email           String      @unique
+  name            String
+  passwordHash    String
+  professionId    String?
+  profession      Profession? @relation(fields: [professionId], references: [id])
+  level           String?
+  plan            String      @default("free") // free | pro
+  planUntil       DateTime? // до какого момента оплачен pro
+  pdConsentAt     DateTime? // когда дано согласие на обработку персональных данных (отдельная отметка при регистрации)
+  pdConsentVer    String? // редакция документа согласия
+  emailVerifiedAt DateTime? // когда e-mail подтверждён по ссылке из письма
+  hasPassword     Boolean     @default(true) // false — аккаунт создан партнёром (JobToo), пароль ещё не задан
+  source          String? // откуда пришёл пользователь: null — регистрация в Clymly, "jobtoo" — переход из JobToo
+  createdAt       DateTime    @default(now())
 
   sessions        Session[]
   resumes         Resume[]
@@ -92,7 +93,23 @@ model User {
   attempts        PracticeAttempt[]
   payments        Payment[]
   partnerLinks    PartnerLink[]
+  emailTokens     EmailToken[]
   partnerConsents PartnerConsent[]
+}
+
+// Одноразовые ссылки из писем (подтверждение e-mail). Храним только sha256 токена.
+model EmailToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  purpose   String // verify
+  email     String // адрес, который подтверждается
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Session {

@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { startMockJobToo } from './mock-jobtoo.mjs';
+import { startMockSmtp, verifyLink } from './mock-smtp.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
 const IN_SECRET = process.env.JOBTOO_INBOUND_SECRET ?? 'test-in';
@@ -56,6 +57,62 @@ const basePayload = (o = {}) => ({
 const pathOf = (u) => { const x = new URL(u); return x.pathname + x.search; };
 
 const mock = await startMockJobToo({ port: 4100, secret: OUT_SECRET });
+// SMTP-заглушка на 465 (TLS). Сервер Clymly: SMTP_HOST=localhost SMTP_PORT=465 SMTP_USER=mailer SMTP_PASSWORD=mailer-pass SMTP_FROM=… NODE_EXTRA_CA_CERTS=<cert>
+const smtp = await startMockSmtp({ port: Number(process.env.SMTP_PORT ?? 465), cert: process.env.SMTP_CERT, key: process.env.SMTP_KEY });
+const mailFor = async (email, after = 0) => {
+  for (let i = 0; i < 40; i++) { const m = smtp.state.messages.filter((x) => x.to.includes(email)).slice(after); if (m.length) return m[0]; await sleep(250); }
+  return null;
+};
+/** Регистрирует пользователя и (по желанию) подтверждает e-mail по ссылке из письма. */
+async function registerUser(email, { verify = false, profession = 'product-manager' } = {}) {
+  const c = new Client();
+  await c.json('/api/auth/register', { name: 'Тест Пользователь', email, password: 'password123', consent: true });
+  await c.json('/api/profile', { professionId: profession, level: 'middle' }, 'PATCH');
+  if (verify) { const m = await mailFor(email); await c.req(verifyLink(m.raw)); }
+  return c;
+}
+
+/* ───────── Подтверждение e-mail ───────── */
+section('Подтверждение e-mail (SMTP, порт 465, TLS)');
+{
+  const em = `verify_${T}@example.com`;
+  const c = new Client();
+  await c.json('/api/auth/register', { name: 'Вера Проверкина', email: em, password: 'password123', consent: true });
+  await c.json('/api/profile', { professionId: 'product-manager', level: 'middle' }, 'PATCH');
+  const m = await mailFor(em);
+  ok(!!m && m.authed && smtp.state.authFailures === 0, 'после регистрации письмо отправлено по SMTP с TLS и авторизацией');
+  ok(m && /Subject: =\?UTF-8|Subject: Подтвердите/i.test(m.raw) && /no-reply@clymly\.ru/.test(m.raw), 'тема и отправитель письма');
+  const link = m && verifyLink(m.raw);
+  ok(!!link && link.startsWith('/verify-email?token='), 'в письме ссылка подтверждения');
+  let pg = await (await c.req('/dashboard')).text();
+  ok(pg.includes('data-testid="verify-banner"'), 'в кабинете напоминание «Подтвердите e-mail»');
+  ok((await new Client().req('/verify-email?token=' + 'x'.repeat(43)).then((r) => r.text())).includes('data-result="invalid"'), 'поддельная ссылка → «недействительна»');
+  pg = await (await new Client().req(link)).text();
+  ok(pg.includes('data-result="verified"'), 'переход по ссылке (даже без входа) → «E-mail подтверждён»');
+  pg = await (await new Client().req(link)).text();
+  ok(pg.includes('data-result="already"'), 'повторный переход (например, почтовым сканером) → «уже подтверждён»');
+  pg = await (await c.req('/dashboard')).text();
+  ok(!pg.includes('data-testid="verify-banner"'), 'после подтверждения напоминание исчезает');
+  pg = await (await c.req('/settings')).text();
+  ok(pg.includes('Подтверждён'), 'настройки: статус «Подтверждён»');
+  const r1 = await (await c.json('/api/auth/verify-email/resend', {})).json();
+  ok(r1.already === true, 'подтверждённому повторное письмо не отправляется');
+
+  const em2 = `verify2_${T}@example.com`;
+  const c2 = new Client();
+  await c2.json('/api/auth/register', { name: 'Пётр', email: em2, password: 'password123', consent: true });
+  await mailFor(em2);
+  const s1 = (await c2.json('/api/auth/verify-email/resend', {})).status;
+  const m2 = await mailFor(em2, 1);
+  ok(s1 === 200 && !!m2, 'повторная отправка письма работает');
+  await c2.json('/api/auth/verify-email/resend', {}); await c2.json('/api/auth/verify-email/resend', {});
+  ok((await c2.json('/api/auth/verify-email/resend', {})).status === 429, 'частые повторные отправки ограничены');
+  const oldLink = verifyLink((await mailFor(em2)).raw);
+  pg = await (await new Client().req(verifyLink(m2.raw))).text();
+  ok(pg.includes('data-result="verified"'), 'подтверждение по новой ссылке');
+  ok((await (await new Client().req(oldLink)).text()).includes('data-result="already"'), 'старая ссылка после подтверждения — «уже подтверждён»');
+}
+
 
 /* ───────── JobToo → Clymly: проверка запросов ───────── */
 section('JobToo → Clymly: защита и проверка запросов');
@@ -162,7 +219,7 @@ const ownerEmail = `owner_${T}@example.com`;
 await owner.json('/api/auth/register', { name: 'Ольга', email: ownerEmail, password: 'password123', consent: true });
 await owner.json('/api/profile', { professionId: 'accountant', level: 'senior' }, 'PATCH');
 const lr = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-3`, email: ownerEmail, email_verified: true, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
-ok(lr.data?.account === 'link_required', 'существующий e-mail → link_required (автовход запрещён даже при email_verified=true)');
+ok(lr.data?.account === 'link_required', 'существующий e-mail, не подтверждённый в Clymly → link_required (автовход запрещён даже при email_verified=true)');
 const stranger = new Client();
 res = await stranger.req(pathOf(lr.data.login_url));
 ok(res.status === 303 && res.headers.get('location') === '/link/jobtoo' && !stranger.jar.has('session') && stranger.jar.has('partner_link'), 'ссылка не создаёт сессию — ведёт на привязку');
@@ -171,7 +228,7 @@ ok(page.includes('У вас уже есть аккаунт Clymly') && !page.inc
 ok((await stranger.json('/api/integrations/jobtoo/link', { action: 'link' })).status === 401, 'привязка без входа невозможна');
 ok((await stranger.json('/api/auth/login', { email: ownerEmail, password: 'password123' })).status === 200, 'владелец входит своим паролем');
 page = await (await stranger.req('/link/jobtoo')).text();
-ok(page.includes('Связать аккаунт Clymly с JobToo?'), 'после входа — подтверждение привязки');
+ok(page.includes('Связать аккаунт Clymly с JobToo?') && page.includes(ownerEmail) && page.includes('data-testid="link-emails"'), 'после входа — подтверждение привязки, обе почты показаны полностью');
 r = await stranger.json('/api/integrations/jobtoo/link', { action: 'link' });
 const lk = await r.json();
 ok(r.status === 200 && lk.landing === '/resume', 'аккаунты связаны, резюме импортировано');
@@ -180,6 +237,69 @@ const lr2 = await partnerPost('/api/partner/v1/handoff', { payload: basePayload(
 ok(lr2.data?.account === 'found', 'следующий переход — сразу вход (account=found)');
 await sleep(1200);
 ok(mock.state.events.some((e) => e.event === 'account_linked' && e.request_id === lr.requestId), 'JobToo получил account_linked');
+
+/* ───────── Защита от навязанной привязки ───────── */
+section('Защита от навязанной привязки');
+{
+  // Почта JobToo не подтверждена — связать нельзя (иначе любой мог бы указать в JobToo чужой адрес)
+  const victimEmail = `victim_${T}@example.com`;
+  const victim = await registerUser(victimEmail);
+  const x = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-att1`, email: victimEmail, email_verified: false, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
+  ok(x.data?.account === 'link_required', 'чужой e-mail без подтверждения в JobToo → link_required');
+  // злоумышленник присылает ссылку жертве; жертва вошла в Clymly
+  await victim.req(pathOf(x.data.login_url));
+  page = await (await victim.req('/link/jobtoo')).text();
+  ok(page.includes('Подтвердите почту в JobToo') && !page.includes('data-testid="link-confirm"'), 'неподтверждённая почта JobToo: кнопки «Связать» нет');
+  let rr = await victim.json('/api/integrations/jobtoo/link', { action: 'link' });
+  ok(rr.status === 403, 'привязка с неподтверждённой почтой JobToo отклонена (403)');
+  ok(!(await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-att1`, email: victimEmail, vacancy: null }), file: { name: 'cv.pdf', data: pdf } })).data?.account?.startsWith('found'), 'после отказа связи нет — вход в аккаунт жертвы невозможен');
+
+  // Ссылка привязки открыта в браузере, где вошёл другой пользователь — привязка к нему запрещена
+  const ownerB = `ownerb_${T}@example.com`;
+  await registerUser(ownerB);
+  const other = await registerUser(`other_${T}@example.com`);
+  const y = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-b`, email: ownerB, email_verified: true, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
+  await other.req(pathOf(y.data.login_url));
+  page = await (await other.req('/link/jobtoo')).text();
+  ok(page.includes('Это другой аккаунт Clymly') && !page.includes('data-testid="link-confirm"'), 'вошли в другой аккаунт: «Это другой аккаунт», связать нельзя');
+  rr = await other.json('/api/integrations/jobtoo/link', { action: 'link' });
+  ok(rr.status === 403, 'привязка к аккаунту с другой почтой отклонена (403)');
+  ok(other.jar.has('partner_link'), 'билет привязки не сгорел — можно войти в нужный аккаунт');
+  await other.json('/api/auth/logout', {});
+  await other.json('/api/auth/login', { email: ownerB, password: 'password123' });
+  rr = await other.json('/api/integrations/jobtoo/link', { action: 'link' });
+  ok(rr.status === 200, 'после входа в аккаунт с той же почтой привязка выполнена');
+  // существующую связь нельзя перезаписать другим аккаунтом JobToo
+  const z = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-b2`, email: ownerB, email_verified: true, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
+  ok(z.data?.account === 'link_required', 'другой аккаунт JobToo с той же почтой → link_required');
+  await other.req(pathOf(z.data.login_url));
+  rr = await other.json('/api/integrations/jobtoo/link', { action: 'link' });
+  ok(rr.status === 409, 'существующая связь не перезаписывается (409)');
+}
+
+/* ───────── Почта подтверждена с обеих сторон → связь без пароля ───────── */
+section('Почта подтверждена с обеих сторон');
+{
+  const em = `both_${T}@example.com`;
+  await registerUser(em, { verify: true });
+  const a1 = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-v`, email: em, email_verified: true, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
+  ok(a1.data?.account === 'found', 'e-mail подтверждён в Clymly и в JobToo → аккаунты связаны автоматически (found)');
+  const br = new Client();
+  const rr = await br.req(pathOf(a1.data.login_url));
+  ok(rr.status === 303 && rr.headers.get('location') === '/resume' && br.jar.has('session'), 'вход сразу в существующий аккаунт, резюме загружено');
+  await sleep(1200);
+  ok(mock.state.events.some((e) => e.event === 'account_linked' && e.request_id === a1.requestId), 'JobToo получил account_linked');
+  const em3 = `half_${T}@example.com`;
+  await registerUser(em3, { verify: true });
+  const a2 = await partnerPost('/api/partner/v1/handoff', { payload: basePayload({ jobtoo_user_id: `jt-${T}-h`, email: em3, email_verified: false, vacancy: null }), file: { name: 'cv.pdf', data: pdf } });
+  ok(a2.data?.account === 'link_required', 'подтверждено только в Clymly → link_required');
+  // Clymly → JobToo: email_verified=true для подтверждённой почты
+  const vu = await registerUser(`out_${T}@example.com`, { verify: true });
+  await vu.req('/api/resume', { method: 'POST', body: (() => { const f = new FormData(); f.set('file', new Blob([pdf], { type: 'application/pdf' }), 'cv.pdf'); return f; })() });
+  await vu.json('/api/integrations/jobtoo/consent', { placement: 'resume' });
+  const o = await vu.json('/api/integrations/jobtoo/handoff', { placement: 'resume' });
+  ok(o.status === 200 && mock.state.handoffs.at(-1).payload.email_verified === true, 'Clymly → JobToo: email_verified=true для подтверждённой почты');
+}
 
 /* ───────── Clymly → JobToo ───────── */
 section('Clymly → JobToo');
@@ -196,7 +316,7 @@ ok(r.status === 200 && out.url?.startsWith('http://localhost:4100/sso/clymly') &
 const sent = mock.state.handoffs.at(-1);
 ok(mock.state.badSignatures === 0 && sent.requestId === out.requestId, 'запрос подписан, request_id совпадает');
 const p = sent.payload;
-ok(p.source === 'clymly' && p.email === `jt_${T}_1@example.com` && p.email_verified === false && p.target_position === 'Продакт-менеджер' && p.experience_level === 'middle' && p.resume_text.length > 100 && p.consent.version && p.utm.placement === 'resume', 'состав данных по формату v1 (email_verified=false)');
+ok(p.source === 'clymly' && p.email === `jt_${T}_1@example.com` && p.email_verified === false /* почта не подтверждена в Clymly */ && p.target_position === 'Продакт-менеджер' && p.experience_level === 'middle' && p.resume_text.length > 100 && p.consent.version && p.utm.placement === 'resume', 'состав данных по формату v1 (email_verified=false)');
 ok(p.jobtoo_user_id === `jt-${T}-1`, 'передан связанный jobtoo_user_id');
 ok(!('phone' in p) && !('passwordHash' in p), 'лишние данные не передаются');
 ok((await anna.json('/api/integrations/jobtoo/track', { event: 'redirect_opened', placement: 'resume', requestId: out.requestId })).status === 200, 'событие redirect_opened записано');
@@ -244,5 +364,6 @@ ok(miss.length === 0, `в аналитике есть все шаги ворон
 ok(!/@example\.com|cv\.pdf|login_url|code=/.test(csv), 'в аналитике нет e-mail, файлов, ссылок и кодов входа');
 
 await mock.close();
+await smtp.close();
 console.log(failed ? `\n${failed} проверок провалено` : '\nВсе проверки интеграции пройдены');
 process.exit(failed ? 1 : 0);

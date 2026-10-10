@@ -13,6 +13,8 @@ import { ReanalyzeButton } from '@/components/ResumeActions';
 import { AdaptButton } from '@/components/VacancyActions';
 import JobTooButton from '@/components/JobTooButton';
 import { jobtooButtonState } from '@/lib/partners/state';
+import { mailEnabled } from '@/lib/mail';
+import { VerifyEmailBanner } from '@/components/VerifyEmail';
 
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10, m100 = n % 100;
@@ -64,6 +66,8 @@ export default async function Dashboard() {
           <ChangeGoalButton variant="ghost" />
         </div>
       </header>
+
+      {!user.emailVerifiedAt && mailEnabled() && <VerifyEmailBanner email={user.email} />}
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8">
         {/* Левая колонка: путь и статусы — как список разделов со счётчиками */}

@@ -50,3 +50,14 @@ export function LinkJobToo() {
     </div>
   );
 }
+
+/** Выйти и войти в другой аккаунт, сохранив возврат на страницу привязки. */
+export function SwitchAccount() {
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    await request('/api/auth/logout', { method: 'POST', timeoutMs: 15_000 });
+    window.location.assign('/login?next=%2Flink%2Fjobtoo');
+  }
+  return <Button size="lg" className="mt-6 w-full" disabled={busy} onClick={go} data-testid="link-switch">{busy && <Spinner />}Выйти и войти в другой аккаунт</Button>;
+}

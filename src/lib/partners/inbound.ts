@@ -12,7 +12,7 @@ import { verify } from './signing';
 import { allow } from './ratelimit';
 import { issueCode } from './codes';
 import { applyImport, type ImportPayload } from './imports';
-import { track } from './events';
+import { enqueuePartnerEvent, flushOutbox, track } from './events';
 
 export type ErrorCode = 'invalid_payload' | 'invalid_signature' | 'consent_missing' | 'duplicate_request' | 'file_too_large' | 'unsupported_file' | 'resume_unreadable' | 'rate_limited' | 'unavailable';
 const STATUS: Record<ErrorCode, number> = { invalid_payload: 400, invalid_signature: 401, consent_missing: 403, duplicate_request: 409, file_too_large: 413, unsupported_file: 415, resume_unreadable: 422, rate_limited: 429, unavailable: 503 };
@@ -133,18 +133,28 @@ export async function handleInboundHandoff(req: Request): Promise<Response> {
     }
 
     const importPayload: ImportPayload = {
-      externalUserId: p.jobtoo_user_id, email: p.email, name: p.name, targetPosition: p.target_position, level: (p.experience_level as ImportPayload['level']) ?? null, resume,
+      externalUserId: p.jobtoo_user_id, email: p.email, emailVerified: p.email_verified, name: p.name, targetPosition: p.target_position, level: (p.experience_level as ImportPayload['level']) ?? null, resume,
       vacancy: p.vacancy?.description ? { title: p.vacancy.title ?? null, company: p.vacancy.company ?? null, description: p.vacancy.description, url: safeVacancyUrl(p.vacancy.url) } : null,
     };
 
-    // Аккаунт: связка → найден; e-mail занят → только через подтверждение владельцем; иначе — новый
+    // Аккаунт: связка → найден; e-mail занят → связываем сами, только если почту подтвердили обе стороны,
+    // иначе — только после входа владельца; иначе — новый аккаунт
     const link = await db.partnerLink.findUnique({ where: { partner_externalUserId: { partner: PARTNER, externalUserId: p.jobtoo_user_id } } });
+    const existing = link ? null : await db.user.findUnique({ where: { email: p.email } });
     let account: 'found' | 'created' | 'link_required';
     let userId: string | null = null;
+    let autoLinked = false;
     if (link) {
       account = 'found'; userId = link.userId;
-    } else if (await db.user.findUnique({ where: { email: p.email } })) {
-      account = 'link_required';
+    } else if (existing) {
+      const busy = await db.partnerLink.findUnique({ where: { partner_userId: { partner: PARTNER, userId: existing.id } } });
+      if (existing.emailVerifiedAt && p.email_verified === true && !busy) {
+        // Почта подтверждена и в Clymly, и в JobToo — это один владелец. Существующую связь не перезаписываем.
+        await db.partnerLink.create({ data: { partner: PARTNER, userId: existing.id, externalUserId: p.jobtoo_user_id } });
+        account = 'found'; userId = existing.id; autoLinked = true;
+      } else {
+        account = 'link_required';
+      }
     } else {
       account = 'created';
       const u = await db.user.create({ data: { email: p.email, name: p.name, passwordHash: await hashPassword(randomBytes(24).toString('hex')), hasPassword: false, source: PARTNER } });
@@ -156,6 +166,11 @@ export async function handleInboundHandoff(req: Request): Promise<Response> {
     const imp = await db.partnerImport.create({ data: { partner: PARTNER, handoffId: h.id, userId, payload: JSON.stringify(importPayload) } });
     const result = { external_user_id: userId ?? `pending:${h.id}`, account, importId: imp.id, userId };
     await db.partnerHandoff.update({ where: { id: h.id }, data: { status: 'ok', account, userId, result: JSON.stringify(result), durationMs: Date.now() - started } });
+    if (autoLinked) {
+      await track({ direction: 'in', event: 'account_linked', requestId, userId, partnerUserId: p.jobtoo_user_id, account: 'auto' });
+      await enqueuePartnerEvent('account_linked', requestId, p.jobtoo_user_id);
+      void flushOutbox();
+    }
     await track({ direction: 'in', event: 'handoff_accepted', requestId, userId, partnerUserId: p.jobtoo_user_id, account, placement: p.utm?.placement, platform: p.utm?.platform, durationMs: Date.now() - started });
 
     // Анализ резюме и вакансии — после ответа партнёру, чтобы уложиться в его тайм-аут

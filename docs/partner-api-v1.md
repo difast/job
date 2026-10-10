@@ -9,7 +9,7 @@
 3. **Путь входа** — например `/sso/clymly?code=…`, срок жизни ссылки (ожидаем до 2 минут) и подтверждение, что она одноразовая.
 4. **Тестовый стенд JobToo** с тестовыми секретами — для проверки без реальных пользователей.
 5. **Секреты подписи** — генерируются один раз (`openssl rand -hex 32`) и передаются защищённым каналом, не в чате и не в репозитории (пары имён — в разделе «Секреты»).
-6. **Подтверждение поведения при `account=link_required`** на стороне JobToo: существующий аккаунт по одному лишь e-mail не открывается без входа владельца (Clymly всегда передаёт `email_verified=false`).
+6. **Подтверждение поведения при `account=link_required`** на стороне JobToo: существующий аккаунт по одному лишь e-mail не открывается без входа владельца. Clymly передаёт `email_verified=true` только для почты, подтверждённой по ссылке из письма Clymly.
 7. **Значения `utm.placement` и `utm.platform`**, которые будет передавать JobToo (например `profile`, `response_card`; `web`, `miniapp`, `app`) — для отчётов.
 8. **Что JobToo считает `first_action`** — какое действие пользователя после входа из Clymly отправлять этим событием.
 9. **Юридическая часть** — текст согласия JobToo (с версией) и договор о передаче данных между компаниями.
@@ -67,7 +67,7 @@
 
 ### Clymly → JobToo
 
-`source="clymly"`, `clymly_user_id`, `jobtoo_user_id` (если связаны), `email`, `email_verified` (**всегда `false`** — Clymly не подтверждает e-mail), `name`, `target_position`, `target_position_id`, `experience_level`, `resume_id`, `resume_text` (файл не передаётся — Clymly хранит только текст), `resume_adapted_text`, `skills_detected`, `consent`, `utm` (`placement`: `dashboard` / `resume` / `adaptation`, `platform`: `web`).
+`source="clymly"`, `clymly_user_id`, `jobtoo_user_id` (если связаны), `email`, `email_verified` (`true` — пользователь подтвердил почту по ссылке из письма Clymly, иначе `false`), `name`, `target_position`, `target_position_id`, `experience_level`, `resume_id`, `resume_text` (файл не передаётся — Clymly хранит только текст), `resume_adapted_text`, `skills_detected`, `consent`, `utm` (`placement`: `dashboard` / `resume` / `adaptation`, `platform`: `web`).
 
 ## Ответ
 
@@ -85,7 +85,11 @@
 ### Как Clymly определяет аккаунт
 
 1. Есть связь по `jobtoo_user_id` → `found`, вход сразу.
-2. Пользователь с таким e-mail уже есть в Clymly → `link_required` **независимо от `email_verified`**: ссылка ведёт на `/link/jobtoo`, владелец входит своим паролем Clymly и подтверждает привязку. До этого `external_user_id` имеет вид `pending:…` — сохранять его как ID не нужно.
+2. Пользователь с таким e-mail уже есть в Clymly:
+   * почта подтверждена **и в Clymly, и в JobToo** (`email_verified=true`), а аккаунт Clymly ещё не связан с другим аккаунтом JobToo → связь создаётся автоматически, `found`;
+   * иначе → `link_required`: ссылка ведёт на `/link/jobtoo`, владелец входит своим паролем Clymly и подтверждает привязку. До этого `external_user_id` имеет вид `pending:…` — сохранять его как ID не нужно.
+
+   Защита от навязанной привязки на экране `/link/jobtoo`: связать можно только аккаунт Clymly **с той же почтой**, что и в JobToo, и только если JobToo подтвердил её (`email_verified=true`). Обе почты показываются полностью. Существующая связь не перезаписывается (409).
 3. Иначе → `created`: аккаунт без пароля (пользователь может задать пароль в настройках). Перед началом работы пользователь принимает условия Clymly.
 
 ## События: `POST /api/partner/v1/events`

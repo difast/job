@@ -9,6 +9,7 @@ import { matchProfession } from './profession-match';
 export interface ImportPayload {
   externalUserId: string;
   email: string;
+  emailVerified: boolean; // подтвердил ли JobToo владение почтой
   name: string;
   targetPosition: string;
   level: LevelKey | null;

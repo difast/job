@@ -11,7 +11,7 @@ import { sign } from './signing';
 import { allow } from './ratelimit';
 import { track } from './events';
 
-type U = { id: string; email: string; name: string; professionId: string | null; level: string | null };
+type U = { id: string; email: string; name: string; professionId: string | null; level: string | null; emailVerifiedAt: Date | null };
 
 export async function activeConsent(userId: string) {
   return db.partnerConsent.findFirst({ where: { userId, partner: PARTNER, revokedAt: null, version: JOBTOO_CONSENT_VERSION }, orderBy: { acceptedAt: 'desc' } });
@@ -41,7 +41,7 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
 
   const payload = {
     source: 'clymly', clymly_user_id: user.id, jobtoo_user_id: link?.externalUserId ?? null,
-    email: user.email, email_verified: false, // Clymly пока не подтверждает e-mail
+    email: user.email, email_verified: !!user.emailVerifiedAt, // true — пользователь подтвердил почту по ссылке из письма Clymly
     name: user.name, target_position: profession.name, target_position_id: profession.id, experience_level: user.level,
     resume_id: resume.id, resume_text: resume.text.slice(0, 30_000), resume_adapted_text: adapted?.slice(0, 30_000) ?? null,
     skills_detected: skills, consent: { accepted_at: consent.acceptedAt.toISOString(), version: consent.version },

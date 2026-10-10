@@ -7,7 +7,7 @@ import { LINK_COOKIE } from '@/lib/partners/config';
 import { peekCode } from '@/lib/partners/codes';
 import { parseImport } from '@/lib/partners/imports';
 import PartnerFrame from '@/components/PartnerFrame';
-import { LinkJobToo } from '@/components/PartnerClients';
+import { LinkJobToo, SwitchAccount } from '@/components/PartnerClients';
 import { buttonClass } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Связать аккаунт с JobToo', robots: { index: false, follow: false } };
@@ -27,7 +27,8 @@ export default async function LinkPage() {
     );
   }
   const user = await getUser();
-  const email = parseImport(imp.payload).email;
+  const data = parseImport(imp.payload);
+  const email = data.email;
   if (!user) {
     return (
       <PartnerFrame>
@@ -38,16 +39,39 @@ export default async function LinkPage() {
       </PartnerFrame>
     );
   }
+  // Почта в JobToo не подтверждена — связать нельзя: иначе любой мог бы указать в JobToo чужой адрес
+  if (!data.emailVerified) {
+    return (
+      <PartnerFrame>
+        <div className="text-[13px] font-medium text-accent-600">Переход из JobToo</div>
+        <h1 className="mt-2 text-[24px] font-semibold leading-tight tracking-tight">Подтвердите почту в JobToo</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">Аккаунт Clymly с этой почтой уже существует. Связать его с JobToo можно только после того, как почта будет подтверждена в JobToo. Подтвердите её в JobToo и нажмите «Перейти в Clymly» ещё раз.</p>
+        <Link href="/dashboard" className={buttonClass({ variant: 'secondary', className: 'mt-6' })} data-testid="link-unverified">Открыть Clymly</Link>
+      </PartnerFrame>
+    );
+  }
+  // Вошли не в тот аккаунт — привязка невозможна
+  if (user.email.toLowerCase() !== email.toLowerCase()) {
+    return (
+      <PartnerFrame>
+        <div className="text-[13px] font-medium text-accent-600">Переход из JobToo</div>
+        <h1 className="mt-2 text-[24px] font-semibold leading-tight tracking-tight">Это другой аккаунт Clymly</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">Вы вошли как <b className="font-medium text-ink user-text">{user.email}</b>, а в JobToo указана почта <b className="font-medium text-ink">{mask(email)}</b>. Связать можно только аккаунты с одинаковой почтой. Выйдите и войдите в аккаунт Clymly с почтой из JobToo.</p>
+        <SwitchAccount />
+      </PartnerFrame>
+    );
+  }
   return (
     <PartnerFrame>
       <div className="text-[13px] font-medium text-accent-600">Переход из JobToo</div>
       <h1 className="mt-2 text-[24px] font-semibold leading-tight tracking-tight">Связать аккаунт Clymly с JobToo?</h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
-        В JobToo указан e-mail <b className="font-medium text-ink">{mask(email)}</b>. Вы вошли в Clymly как <b className="font-medium text-ink">{user.email}</b>.
-        После привязки резюме из JobToo появится в этом аккаунте, а следующие переходы будут без пароля.
-      </p>
+      <dl className="mt-4 space-y-2 rounded-xl bg-canvas p-4 text-sm" data-testid="link-emails">
+        <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted">Аккаунт Clymly</dt><dd className="font-medium user-text">{user.email}</dd></div>
+        <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted">Аккаунт JobToo</dt><dd className="font-medium user-text">{email} <span className="font-normal text-ok">· подтверждена</span></dd></div>
+      </dl>
+      <p className="mt-4 text-[15px] leading-relaxed text-ink-2">После привязки резюме из JobToo появится в этом аккаунте, а следующие переходы из JobToo будут открывать Clymly без пароля. Связывайте, только если оба аккаунта ваши.</p>
       <LinkJobToo />
-      <p className="mt-4 text-xs leading-relaxed text-muted">Если это не ваш аккаунт JobToo — нажмите «Не связывать». Отвязать аккаунт можно в любой момент в разделе «Настройки».</p>
+      <p className="mt-4 text-xs leading-relaxed text-muted">Не нажимали «Перейти в Clymly» в JobToo? Нажмите «Не связывать». Отвязать аккаунт можно в любой момент в разделе «Настройки».</p>
     </PartnerFrame>
   );
 }

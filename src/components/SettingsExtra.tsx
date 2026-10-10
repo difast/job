@@ -5,6 +5,8 @@ import { request } from '@/lib/client';
 import { useConfirm } from './Confirm';
 import { useToast } from './Toast';
 import { Alert, Button, Spinner } from './ui';
+import Icon from './Icon';
+import { ResendVerification } from './VerifyEmail';
 
 function Row({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -19,8 +21,8 @@ const input = 'h-10 w-full max-w-sm rounded-lg border border-line-strong px-3.5 
 
 export interface HistoryItem { id: string; date: string; direction: 'out' | 'in'; status: string; fields: string[] }
 
-export default function SettingsExtra({ hasPassword, integration }: {
-  hasPassword: boolean;
+export default function SettingsExtra({ hasPassword, integration, email, emailVerified, mailOn }: {
+  hasPassword: boolean; email: string; emailVerified: boolean; mailOn: boolean;
   integration: null | { linkedAt: string | null; consentAt: string | null; history: HistoryItem[] };
 }) {
   const router = useRouter();
@@ -58,6 +60,15 @@ export default function SettingsExtra({ hasPassword, integration }: {
 
   return (
     <div className="mt-6 max-w-[860px] rounded-2xl border border-line bg-white">
+      <Row title="E-mail" hint="Подтверждённый адрес защищает аккаунт и позволяет связывать его с JobToo без пароля.">
+        <div className="flex flex-wrap items-center justify-between gap-3" data-testid="email-status">
+          <div className="min-w-0">
+            <div className="truncate font-medium user-text">{email}</div>
+            <div className={emailVerified ? 'mt-0.5 inline-flex items-center gap-1 text-sm text-ok' : 'mt-0.5 text-sm text-ink-2'}>{emailVerified ? <><Icon name="check-circle" size={14} />Подтверждён</> : 'Не подтверждён'}</div>
+          </div>
+          {!emailVerified && mailOn && <ResendVerification />}
+        </div>
+      </Row>
       <Row title={hasPassword ? 'Пароль' : 'Задайте пароль'} hint={hasPassword ? 'Для входа по e-mail и паролю.' : 'Аккаунт создан при переходе из JobToo. Задайте пароль, чтобы входить в Clymly напрямую.'}>
         <form onSubmit={savePassword} className="space-y-2.5" data-testid="password-form">
           {hasPassword && <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} aria-label="Текущий пароль" />}
