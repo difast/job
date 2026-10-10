@@ -3,7 +3,7 @@ import { requirePageUser } from '@/lib/auth';
 import { latestResume } from '@/lib/context';
 import { db } from '@/lib/db';
 import { greeting } from '@/lib/format';
-import { currentTier } from '@/lib/billing/plans';
+import { PLANS, currentTier, formatRub } from '@/lib/billing/plans';
 import { LEVEL_SHORT, parseJson, type LevelKey, type ResumeAnalysis } from '@/lib/types';
 import { Meter, ScoreRing, TextLink, buttonClass, cx, scoreVerdict } from '@/components/ui';
 import Icon, { type IconName } from '@/components/Icon';
@@ -15,6 +15,8 @@ import { JobTooCard } from '@/components/JobTooButton';
 import { jobtooButtonState } from '@/lib/partners/state';
 import { mailEnabled } from '@/lib/mail';
 import { VerifyEmailBanner } from '@/components/VerifyEmail';
+
+const PRO_OFFER = PLANS.filter((p) => p.price > 0).map((p) => `${formatRub(p.price)} ${p.period}`).join(' или ');
 
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10, m100 = n % 100;
@@ -97,7 +99,7 @@ export default async function Dashboard() {
           </section>
           <Link href="/billing" className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-5 transition-colors hover:border-line-strong">
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-medium">{tier === 'pro' ? 'Clymly Pro активен' : 'Clymly Pro — 499 ₽ в месяц'}</div>
+              <div className="text-[15px] font-medium">{tier === 'pro' ? 'Clymly Pro активен' : `Clymly Pro — ${PRO_OFFER}`}</div>
               <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `До ${until.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', timeZone: 'Europe/Moscow' })}` : 'Для активного поиска работы'}</div>
               <div className="mt-2.5 text-sm font-medium text-accent-600">{tier === 'pro' ? 'Управлять тарифом' : 'Подробнее'}</div>
             </div>

@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { requireAdminPage } from '@/lib/admin/auth';
-import { ACTIVE_HINT, dailySeries, overview, type MoneyByCurrency } from '@/lib/admin/data';
+import { ACTIVE_HINT, dailySeries, overview, planStats, type MoneyByCurrency } from '@/lib/admin/data';
 import { marketingReport } from '@/lib/admin/marketing';
-import { PERIODS, dayRange, fmtDate, fmtMoney, parsePeriod, pct } from '@/lib/admin/period';
+import { PERIODS, dayRange, fmtDate, fmtMoney, parsePeriod, pct, periodStart } from '@/lib/admin/period';
 import { Chips, DayBars, Funnel, Kpi, Section, qs } from '@/components/admin/parts';
 import { PaymentStatusBadge } from '@/components/billing';
-import { getPlan } from '@/lib/billing/plans';
+import { planLabel } from '@/lib/billing/plans';
+import { PROVIDER_LABEL } from '@/lib/billing/provider';
+import PlanStatsTable from '@/components/admin/PlanStatsTable';
 
 const money = (m: MoneyByCurrency) => (m.length ? m.map((x) => fmtMoney(x.amount, x.currency)).join(' + ') : fmtMoney(0));
 const count = (m: MoneyByCurrency) => m.reduce((a, x) => a + x.count, 0);
@@ -13,7 +15,7 @@ const count = (m: MoneyByCurrency) => m.reduce((a, x) => a + x.count, 0);
 export default async function AdminOverview({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   await requireAdminPage();
   const period = parsePeriod((await searchParams).period);
-  const [o, series, mk] = await Promise.all([overview(), dailySeries(period), marketingReport({ period, model: 'first' }, 'link')]);
+  const [o, series, mk, plans] = await Promise.all([overview(), dailySeries(period), marketingReport({ period, model: 'first' }, 'link'), planStats({ createdAt: { gte: periodStart(period) } })]);
   const days = dayRange(period, series.first);
   const t = mk.totals;
   return (
@@ -48,6 +50,10 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
       </div>
       <p className="mt-2 text-[12px] text-muted">Регулярная выручка (MRR) не рассчитывается: автопродления нет, каждая оплата разовая.</p>
 
+      <Section title={`Покупки по тарифам · ${PERIODS.find((p) => p.key === period)?.label ?? ''}`} className="mt-4" action={<Link href={qs('/admin/payments', { period, status: 'succeeded' })} className="text-[13px] font-medium text-accent-600 hover:text-accent-700">Платежи →</Link>}>
+        <PlanStatsTable stats={plans} />
+      </Section>
+
       <div className="mt-7 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
         <Section title="Динамика по дням (МСК)">
           <div className="grid gap-6 sm:grid-cols-2">
@@ -77,9 +83,10 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
               <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5">
                 <span className="w-32 shrink-0 text-muted">{fmtDate(p.createdAt, true)}</span>
                 <span className="min-w-0 flex-1 truncate">{p.user.email}</span>
-                <span className="text-ink-2">{getPlan(p.planId)?.name ?? p.planId}</span>
+                <span className="text-ink-2">{planLabel(p.planId, p)}</span>
+                <span className="w-16 text-[12px] text-muted">{PROVIDER_LABEL[p.provider] ?? p.provider}</span>
                 <span className="tabular w-24 text-right">{fmtMoney(p.amount, p.currency)}</span>
-                <PaymentStatusBadge status={p.status} />
+                <PaymentStatusBadge status={p.status} issue={p.issue} />
               </li>
             ))}
           </ul>

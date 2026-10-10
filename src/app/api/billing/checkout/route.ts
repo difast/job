@@ -3,7 +3,8 @@ import { requireApiUser } from '@/lib/auth';
 import { handler, json } from '@/lib/http';
 import { createCheckout } from '@/lib/billing/service';
 
-const schema = z.object({ planId: z.string().min(1) });
+// Клиент передаёт только id тарифа и способ оплаты; цена, срок и пользователь определяются на сервере
+const schema = z.object({ planId: z.string().min(1).max(40), method: z.enum(['card', 'yoomoney']).default('card') });
 
 /** Адрес сайта для return_url: APP_URL или заголовки прокси (Timeweb проксирует через HTTPS). */
 function originOf(req: Request) {
@@ -16,6 +17,6 @@ function originOf(req: Request) {
 
 export const POST = handler(async (req: Request) => {
   const user = await requireApiUser();
-  const { planId } = schema.parse(await req.json().catch(() => ({})));
-  return json(await createCheckout(user, planId, originOf(req)));
+  const { planId, method } = schema.parse(await req.json().catch(() => ({})));
+  return json(await createCheckout(user, planId, originOf(req), method));
 });

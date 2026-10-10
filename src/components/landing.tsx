@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Icon from './Icon';
 import { Logo, Meter, ScoreRing, cx } from './ui';
 import { COMPANY } from '@/lib/legal';
-import { formatRub, getPlan } from '@/lib/billing/plans';
+import { formatRub, getPlan, priceNotes } from '@/lib/billing/plans';
 
 export { default as LandingHeader } from './LandingHeader';
 
@@ -227,6 +227,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
   const free = getPlan('free')!;
   const pro = getPlan('pro-month')!;
   const quarter = getPlan('pro-quarter')!;
+  const [proNotes, qNotes] = [priceNotes(pro), priceNotes(quarter)];
   // Pro оформляется на странице «Тариф и оплата»; без аккаунта — сначала регистрация, затем возврат к выбранному тарифу
   const buy = (planId: string) => (signedIn ? `/billing?plan=${planId}` : `/register?next=${encodeURIComponent(`/billing?plan=${planId}`)}`);
   const check = (dark: boolean) => <Icon name="check" size={17} strokeWidth={2.3} className={cx('mt-0.5 shrink-0', dark ? 'text-accent-300' : 'text-accent-600')} />;
@@ -240,7 +241,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
           <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-accent-600">Тарифы</div>
           <h2 id="pricing-h" className="font-display mt-4 text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[44px]">Начните бесплатно</h2>
         </div>
-        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro можно оплачивать помесячно или сразу за 3 месяца — так выгоднее.</p>
+        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro оплачивается разово — на 1 или сразу на 3 месяца (так выгоднее), без автопродления.</p>
       </div>
       <div className="mt-12 grid gap-7 lg:grid-cols-3 lg:gap-5">
         <article className="flex flex-col rounded-[28px] border border-line-strong bg-white p-7 sm:p-9" data-testid="pricing-free">
@@ -258,27 +259,25 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
           <svg aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-64 w-64" viewBox="0 0 200 200" fill="none"><circle cx="100" cy="100" r="70" stroke={ACCENT} strokeWidth="44" opacity="0.55" /></svg>
           <div className="relative flex flex-wrap items-center gap-2.5">
             <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">{pro.name}</h3>
-            <span className="rounded-full bg-milk/15 px-2.5 py-0.5 text-[12px] font-medium text-milk">1 месяц</span>
           </div>
           <p className="relative mt-1.5 min-h-[44px] text-[15px] text-milk/70">{pro.description}</p>
           <div className="relative">{price(formatRub(pro.price), pro.period, true)}</div>
-          <p className="relative mt-2 text-[13px] text-milk/60">Оплата за 1 месяц</p>
+          <p className="relative mt-2 text-[13px] text-milk/60">{proNotes.oneTime}</p>
           <ul className="relative mt-7 flex-1 space-y-3 text-[15px]">{pro.features.map((f) => <li key={f} className="flex gap-3">{check(true)}{f}</li>)}</ul>
           <Link href={buy(pro.id)} className="relative mt-9 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-accent-600 px-7 text-[16px] font-semibold text-white transition-colors hover:bg-accent-700">
-            Подключить Pro<Icon name="arrow-right" size={18} />
+            Подключить Pro на 1 месяц<Icon name="arrow-right" size={18} />
           </Link>
         </article>
 
         <article className="relative flex flex-col rounded-[28px] border-2 border-accent-600 bg-white p-7 sm:p-9" data-testid="pricing-pro-quarter">
-          <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">Экономия 20%</span>
+          <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">{qNotes.badge}</span>
           <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">Pro на 3 месяца</h3>
-            <span className="rounded-full bg-accent-50 px-2.5 py-0.5 text-[12px] font-medium text-accent-700">3 месяца</span>
+            <h3 className="font-display text-[24px] font-semibold tracking-[-0.02em]">{quarter.name}</h3>
           </div>
           <p className="mt-1.5 min-h-[44px] text-[15px] text-ink-2">{quarter.description}</p>
           {price(formatRub(quarter.price), quarter.period)}
-          <p className="mt-2 text-[13px] text-ink-2"><b className="font-semibold text-accent-700">{quarter.note}</b> · один платёж за 3 месяца</p>
-          <ul className="mt-7 flex-1 space-y-3 text-[15px]">{quarter.features.map((f) => <li key={f} className="flex gap-3">{check(false)}{f}</li>)}</ul>
+          <p className="mt-2 text-[13px] text-ink-2"><b className="font-semibold text-accent-700">{qNotes.perMonth}</b> · {qNotes.oneTime.toLowerCase()}</p>
+          <ul className="mt-7 flex-1 space-y-3 text-[15px]">{[...quarter.features, qNotes.savings].map((f) => <li key={f} className="flex gap-3">{check(false)}{f}</li>)}</ul>
           <Link href={buy(quarter.id)} className="mt-9 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-ink px-7 text-[16px] font-semibold text-milk transition-colors hover:bg-black">
             Оформить на 3 месяца<Icon name="arrow-right" size={18} />
           </Link>

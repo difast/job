@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Настройки" subtitle="Профиль и целевая профессия" />
-      <SettingsClient name={user.name} email={user.email} professionName={user.profession!.name} level={user.level as LevelKey} tierLabel={(() => { const t = currentTier(user); return t.tier === 'pro' && t.until ? `Clymly Pro до ${t.until.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}` : 'Free — все функции доступны'; })()} />
+      <SettingsClient name={user.name} email={user.email} professionName={user.profession!.name} level={user.level as LevelKey} tierLabel={(() => { const t = currentTier(user); return t.tier === 'pro' && t.until ? `Pro до ${t.until.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}` : 'Free — все функции доступны'; })()} />
       <SettingsExtra email={user.email} emailVerified={!!user.emailVerifiedAt} mailOn={mailEnabled()} hasPassword={user.hasPassword} integration={showIntegration ? {
         linkedAt: link?.linkedAt.toISOString() ?? null, consentAt: consent?.acceptedAt.toISOString() ?? null,
         history: history.map((h) => ({ id: h.id, date: h.createdAt.toISOString(), direction: h.direction as 'out' | 'in', status: h.status, fields: JSON.parse(h.fields) as string[] })),

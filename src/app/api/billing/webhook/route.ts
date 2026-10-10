@@ -16,9 +16,10 @@ export async function POST(req: Request) {
   if (provider.name !== 'yookassa') return Response.json({ ok: true, ignored: 'test-mode' });
 
   const payment = await db.payment.findUnique({ where: { providerPaymentId: providerId } });
-  if (!payment) return Response.json({ ok: true, ignored: 'unknown-payment' }); // 200, чтобы ЮKassa не повторяла
+  if (!payment || payment.provider !== 'yookassa') return Response.json({ ok: true, ignored: 'unknown-payment' }); // 200, чтобы ЮKassa не повторяла
   try {
-    await applyStatus(payment.id, await provider.getStatus(providerId));
+    const status = await provider.getStatus(providerId);
+    if (status) await applyStatus(payment.id, status, 'notification', `ЮKassa ${body?.event ?? ''}`.trim());
   } catch (e) {
     console.error('[billing] webhook verify failed', e);
     return Response.json({ ok: false }, { status: 500 }); // ЮKassa повторит уведомление

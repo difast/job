@@ -24,11 +24,11 @@ ok(html.includes('href="/register"') && html.includes('href="/login"'), 'лен�
 {
   const t = html.replace(/[\u00a0\u202f]/g, ' ');
   const must = ['id="pricing"', 'Тарифы', 'Free', 'Для знакомства с платформой', '0 ₽', 'Анализ резюме', 'Адаптация резюме под вакансию', 'Создание сопроводительного письма', 'Подготовка к собеседованию',
-    'Clymly Pro', '499 ₽', 'в месяц', 'Для активного поиска работы', 'Все основные инструменты Clymly', 'Анализ и улучшение резюме', 'Адаптация резюме под вакансии', 'Создание сопроводительных писем', 'Подготовка к собеседованию и AI-тренажёр',
-    'Pro на 3 месяца', '1 190 ₽', 'за 3 месяца', '≈ 397 ₽ в месяц', 'Всё из тарифа Pro', 'Экономия 20% по сравнению с оплатой Pro помесячно', 'Типичный срок поиска работы — выгоднее помесячной оплаты', 'Оформить на 3 месяца',
+    'Pro — 1 месяц', '499 ₽', 'за 1 месяц', 'Разовый платёж, без автопродления', 'Для активного поиска работы', 'Все основные инструменты Clymly', 'Анализ и улучшение резюме', 'Адаптация резюме под вакансии', 'Создание сопроводительных писем', 'Подготовка к собеседованию и AI-тренажёр',
+    'Pro — 3 месяца', '1 190 ₽', 'за 3 месяца', '≈ 397 ₽ в месяц', 'Экономия 307 ₽', 'Экономия 307 ₽ (≈ 20,5 %) по сравнению с оплатой помесячно', 'Типичный срок поиска работы — выгоднее помесячной оплаты', 'Оформить на 3 месяца',
     'Начать бесплатно', 'Подключить Pro', 'href="/register?next=%2Fbilling%3Fplan%3Dpro-month"', 'href="/register?next=%2Fbilling%3Fplan%3Dpro-quarter"', 'href="/login?next=%2Fbilling"', 'href="/#pricing"'];
   const miss = must.filter((x) => !t.includes(x));
-  ok(miss.length === 0, `лендинг: блок тарифов Free / Clymly Pro и CTA${miss.length ? ' — нет: ' + miss.join(', ') : ''}`);
+  ok(miss.length === 0, `лендинг: блок тарифов Free / Pro — 1 месяц / Pro — 3 месяца и CTA${miss.length ? ' — нет: ' + miss.join(', ') : ''}`);
   ok(!/годов|в год|безлимит|приоритетн/i.test(t), 'лендинг: нет годового тарифа и непроверенных обещаний');
 }
 for (const p of ['/terms', '/privacy', '/consent', '/login', '/register']) ok((await req(p)).status === 200, `публичная страница ${p}`);
@@ -216,9 +216,9 @@ ok(page.includes('Всё готово к отклику') && /ответ(а|ов
 
 // Оплата (тестовый режим — заглушка ЮKassa)
 page = await (await req('/billing')).text();
-ok(['Тариф и оплата', 'Free', 'Clymly Pro', '499', 'Тестовый режим', 'Подключить Pro', 'не ограничивают функции'].every((t) => page.replace(/[\u00a0\u202f]/g, ' ').includes(t)), 'страница тарифов: текущий тариф, Free и Clymly Pro за 499 ₽, тестовый режим');
+ok(['Тариф и оплата', 'Free', 'Pro — 1 месяц', '499 ₽', 'Pro — 3 месяца', '1 190 ₽', '≈ 397 ₽ в месяц', 'Экономия 307 ₽', 'без автопродления', 'Тестовый режим', 'Подключить Pro на 1 месяц', 'не ограничивают функции'].every((t) => page.replace(/[\u00a0\u202f]/g, ' ').includes(t)), 'страница тарифов: текущий тариф, Pro — 1 месяц 499 ₽ и Pro — 3 месяца 1 190 ₽, тестовый режим');
 page = (await (await req('/billing?plan=pro-quarter')).text()).replace(/[\u00a0\u202f]/g, ' ');
-ok(page.includes('Вы выбрали тариф «Clymly Pro на 3 месяца» — 1 190 ₽ за 3 месяца') && page.includes('Оформить на 3 месяца') && page.includes('data-selected="true"'), 'ссылка с лендинга: выбранный тариф «Pro на 3 месяца» подсвечен на странице оплаты');
+ok(page.includes('Вы выбрали тариф «Pro — 3 месяца» — 1 190 ₽ за 3 месяца') && page.includes('Оформить на 3 месяца') && page.includes('data-selected="true"'), 'ссылка с лендинга: выбранный тариф «Pro на 3 месяца» подсвечен на странице оплаты');
 ok((await post('/api/billing/checkout', { planId: 'free' })).status === 400, 'бесплатный тариф нельзя «оплатить»');
 ok((await post('/api/billing/checkout', { planId: 'nope' })).status === 400, 'несуществующий тариф отклонён');
 d = await jsonOf(await post('/api/billing/checkout', { planId: 'pro-month' }));
@@ -227,21 +227,24 @@ const payId = d.paymentId;
 page = await (await req(d.confirmationUrl)).text();
 ok(page.includes('Тестовая оплата') && page.includes('499'), 'страница тестовой оплаты показывает сумму 499 ₽');
 d = await jsonOf(await post(`/api/billing/stub/${payId}`, { action: 'succeed' }));
-ok(d.redirect === `/billing?payment=${payId}`, 'тестовая оплата подтверждена → возврат на тарифы');
+ok(d.redirect === `/billing/result?order=${payId}`, 'тестовая оплата подтверждена → страница результата');
+{ const r0 = await req(`/billing?payment=${payId}`); ok([302, 303, 307, 308].includes(r0.status) ? (r0.headers.get('location') ?? '').includes(`/billing/result?order=${payId}`) : (await r0.text()).includes(`/billing/result?order=${payId}`), 'старый адрес возврата ведёт на страницу результата'); }
 ok((await post(`/api/billing/stub/${payId}`, { action: 'succeed' })).status === 409, 'повторное подтверждение платежа отклонено (Pro не продлевается дважды)');
-page = await (await req(`/billing?payment=${payId}`)).text();
-ok(page.includes('Оплата прошла успешно') && page.includes('Продлить') && page.includes('Оплачен'), 'после оплаты: Pro активен, платёж в истории');
+page = await (await req(`/billing/result?order=${payId}`)).text();
+ok(page.includes('Оплата подтверждена') && page.includes('Pro действует до'), 'после оплаты: страница результата подтверждает оплату и срок');
+page = await (await req('/billing')).text();
+ok(page.includes('Продлить') && page.includes('Оплачен') && page.includes('data-testid="current-tier">Pro · 1 месяц<'), 'после оплаты: Pro · 1 месяц активен, платёж в истории');
 const cancelId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pro-quarter' }))).paymentId;
 await post(`/api/billing/stub/${cancelId}`, { action: 'cancel' });
-page = await (await req(`/billing?payment=${cancelId}`)).text();
-ok(page.includes('Оплата не завершена') && page.includes('Отменён'), 'отмена оплаты: деньги не списаны, статус «Отменён»');
+page = await (await req(`/billing/result?order=${cancelId}`)).text();
+ok(page.includes('Оплата не завершена') && page.includes('деньги не списаны') && (await (await req('/billing')).text()).includes('Отменён'), 'отмена оплаты: деньги не списаны, статус «Отменён»');
 {
   const qId = (await jsonOf(await post('/api/billing/checkout', { planId: 'pro-quarter' }))).paymentId;
   const qp = (await (await req(`/pay/stub/${qId}`)).text()).replace(/[\u00a0\u202f]/g, ' ');
   ok(qp.includes('1 190'), 'оплата за 3 месяца: страница оплаты показывает 1 190 ₽');
   ok((await post(`/api/billing/stub/${qId}`, { action: 'succeed' })).status === 200, 'оплата за 3 месяца проходит через тот же платёжный поток');
-  page = await (await req(`/billing?payment=${qId}`)).text();
-  ok(page.includes('Оплата прошла успешно') && page.includes('Clymly Pro на 3 месяца'), 'после оплаты за 3 месяца: Pro продлён, платёж в истории');
+  page = await (await req(`/billing/result?order=${qId}`)).text();
+  ok(page.includes('Оплата подтверждена') && page.includes('Pro — 3 месяца'), 'после оплаты за 3 месяца: Pro продлён, платёж в истории');
 }
 d = await jsonOf(await post('/api/billing/webhook', { event: 'payment.succeeded', object: { id: 'stub_x' } }));
 ok(d.ignored === 'test-mode', 'webhook в тестовом режиме игнорирует уведомления');

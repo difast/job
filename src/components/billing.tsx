@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 import Icon from './Icon';
 import { cx } from './ui';
-import { formatRub, type Plan } from '@/lib/billing/plans';
+import { formatRub, priceNotes, type Plan } from '@/lib/billing/plans';
 
 /** Карточка тарифа — общая для лендинга и страницы оплаты. */
 export function PlanCard({ plan, action, current, selected }: { plan: Plan; action: ReactNode; current?: boolean; selected?: boolean }) {
+  const notes = priceNotes(plan);
   return (
     <div id={`plan-${plan.id}`} className={cx('relative flex scroll-mt-24 flex-col rounded-xl border bg-white p-6 shadow-card', selected || (plan.highlight && selected === undefined) ? 'border-accent-600 shadow-[0_0_0_1px_var(--color-accent-600)]' : 'border-line')} data-testid={`plan-${plan.id}`} data-selected={selected ? 'true' : undefined}>
       {selected ? <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white">Вы выбрали</span>
+        : notes.badge ? <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white" data-testid="plan-savings">{notes.badge}</span>
         : plan.highlight && selected === undefined && <span className="absolute -top-2.5 left-6 rounded-md bg-accent-600 px-2 py-0.5 text-[11px] font-medium text-white">Популярный</span>}
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-[17px] font-semibold tracking-tight">{plan.name}</h3>
@@ -18,9 +20,13 @@ export function PlanCard({ plan, action, current, selected }: { plan: Plan; acti
         <span className="tabular text-[32px] font-semibold leading-none tracking-tight">{plan.price ? formatRub(plan.price) : '0 ₽'}</span>
         <span className="text-[13px] text-muted">{plan.period}</span>
       </div>
-      <div className="mt-1 h-4 text-xs text-muted">{plan.note}</div>
-      <ul className="mt-5 flex-1 space-y-2.5">
+      <div className="mt-1.5 min-h-8 text-xs leading-relaxed text-muted">
+        {plan.months > 1 && <div className="font-medium text-accent-700">{notes.perMonth}</div>}
+        {notes.oneTime && <div>{notes.oneTime}</div>}
+      </div>
+      <ul className="mt-4 flex-1 space-y-2.5">
         {plan.features.map((f) => <li key={f} className="flex gap-2.5 text-sm"><Icon name="check" size={16} strokeWidth={2.2} className="mt-0.5 shrink-0 text-accent-600" />{f}</li>)}
+        {notes.savings && <li className="flex gap-2.5 text-sm"><Icon name="check" size={16} strokeWidth={2.2} className="mt-0.5 shrink-0 text-accent-600" />{notes.savings}</li>}
       </ul>
       <div className="mt-6">{action}</div>
     </div>
@@ -31,9 +37,10 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   succeeded: { label: 'Оплачен', cls: 'bg-ok-soft text-ok' },
   pending: { label: 'Ожидает оплаты', cls: 'bg-warn-soft text-warn' },
   canceled: { label: 'Отменён', cls: 'bg-subtle text-ink-2' },
+  review: { label: 'Требует проверки', cls: 'bg-bad-soft text-bad' },
 };
 
-export function PaymentStatusBadge({ status }: { status: string }) {
-  const s = STATUS[status] ?? STATUS.pending;
-  return <span className={cx('inline-flex rounded-md px-2 py-0.5 text-xs font-medium', s.cls)}>{s.label}</span>;
+export function PaymentStatusBadge({ status, issue }: { status: string; issue?: string | null }) {
+  const s = issue ? STATUS.review : STATUS[status] ?? STATUS.pending;
+  return <span className={cx('inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium', s.cls)}>{s.label}</span>;
 }

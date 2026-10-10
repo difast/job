@@ -203,21 +203,42 @@ model PracticeAttempt {
 // ───────── Оплата (ЮKassa; пока работает тестовый провайдер-заглушка) ─────────
 
 model Payment {
-  id                String   @id @default(cuid())
+  // Заказ и платёж по нему (одна запись = один заказ на один тариф). id — номер заказа (у ЮMoney это label).
+  id                String         @id @default(cuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider          String // stub | yookassa
-  providerPaymentId String?  @unique
-  planId            String // id тарифа из src/lib/billing/plans.ts
-  amount            Int // в копейках
-  currency          String   @default("RUB")
-  status            String // pending | succeeded | canceled
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // stub | yookassa | yoomoney
+  providerPaymentId String?        @unique // id платежа у ЮKassa / operation_id у ЮMoney
+  planId            String // стабильный id предложения: pro-month | pro-quarter
+  planName          String? // название тарифа на момент покупки («Pro — 1 месяц»)
+  months            Int? // срок на момент покупки, календарных месяцев
+  amount            Int // фактическая сумма заказа, копейки (цена на момент покупки)
+  currency          String         @default("RUB")
+  status            String // статус платежа: pending | succeeded | canceled
+  issue             String? // требует ручной проверки: amount_mismatch | currency_mismatch | duplicate_payment | paid_after_cancel | unaccepted | verify_failed
   confirmationUrl   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  paidAt            DateTime? // когда провайдер подтвердил оплату (дата обработки подтверждения)
+  accessFrom        DateTime? // начало оплаченного этим заказом периода Pro
+  accessUntil       DateTime? // конец оплаченного этим заказом периода Pro
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  events            PaymentEvent[]
 
   @@index([userId, createdAt])
   @@index([createdAt, status])
+}
+
+/// История статусов заказа: создание, переходы, отклонённые и повторные уведомления. Без секретов и данных карт.
+model PaymentEvent {
+  id        String   @id @default(cuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status    String // pending | succeeded | canceled | rejected | duplicate | review
+  source    String // checkout | provider | notification | sync | stub | return
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, createdAt])
 }
 
 // ───────── Маркетинг: ссылки и визиты (атрибуция переход → регистрация → оплата) ─────────

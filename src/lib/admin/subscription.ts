@@ -10,14 +10,18 @@ export function subStatus(u: { plan: string; planUntil: Date | null }, paidCount
   return paidCount > 0 || u.plan === 'pro' ? 'expired' : 'none';
 }
 
-/** Начало текущего (последнего) непрерывного периода Pro по успешным платежам. */
-export function periodStartFromPayments(payments: { planId: string; paidAt: Date }[]): Date | null {
+/**
+ * Начало текущего (последнего) непрерывного периода Pro по успешным платежам.
+ * Используются сохранённые в заказе даты доступа; для старых заказов без них — срок из снимка/тарифа от даты оплаты.
+ */
+export function periodStartFromPayments(payments: { planId: string; months?: number; paidAt: Date; accessFrom?: Date | null; accessUntil?: Date | null }[]): Date | null {
   let until: Date | null = null, start: Date | null = null;
-  for (const p of [...payments].sort((a, b) => a.paidAt.getTime() - b.paidAt.getTime())) {
-    const months = getPlan(p.planId)?.months ?? 0;
+  for (const p of [...payments].sort((a, b) => (a.accessFrom ?? a.paidAt).getTime() - (b.accessFrom ?? b.paidAt).getTime())) {
+    const months = p.months ?? getPlan(p.planId)?.months ?? 0;
     if (months <= 0) continue;
-    if (!until || until < p.paidAt) start = p.paidAt;
-    until = extendUntil(until, months, p.paidAt);
+    const from = p.accessFrom ?? (until && until > p.paidAt ? until : p.paidAt);
+    if (!until || until < from) start = from;
+    until = p.accessUntil ?? extendUntil(until, months, p.paidAt);
   }
   return start;
 }

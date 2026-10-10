@@ -126,7 +126,7 @@ ok(cell(h, 'link-url') === 'https://clymly.ru/go/instagram' || strip(h).includes
 section('Пользователи');
 h = await admin.text(`/admin/users?q=${encodeURIComponent(em1)}`);
 ok(strip(h).includes(em1) && (strip(h).match(/data-testid="user-row"/g) ?? []).length === 1, 'поиск по e-mail');
-ok(cell(h, 'user-plan') === 'Pro' && cell(h, 'user-sub') === 'Активна', 'тариф Pro и подписка «Активна» по данным БД');
+ok(cell(h, 'user-plan') === 'Pro · 1 месяц' && cell(h, 'user-sub') === 'Активна', 'тариф «Pro · 1 месяц» и подписка «Активна» по данным БД');
 ok(strip(h).includes(`Instagram тест ${T}`), 'первый источник и источник регистрации — ссылка Instagram');
 h = await admin.text(`/admin/users?q=${encodeURIComponent(exEmail)}`);
 ok(strip(h).includes('Прямая'), 'существующий аккаунт: источник регистрации «Прямая», первый источник — ссылка (пришёл позже)');
@@ -151,7 +151,7 @@ ok(kpi(h, 'pay-sum') === '499 ₽' && kpi(h, 'pay-failed') === '1' && kpi(h, 'pa
 h = await admin.text(`/admin/payments?period=all&status=pending&source=${slug}`);
 ok((strip(h).match(/data-testid="payment-row"/g) ?? []).length === 1 && kpi(h, 'pay-sum') === '0 ₽', 'ожидающий платёж не считается успешным');
 h = await admin.text('/admin/payments?period=7&plan=pro-quarter&provider=stub');
-ok(h.includes('Clymly Pro на 3 месяца'), 'фильтры по тарифу и провайдеру');
+ok(h.includes('>Pro · 3 месяца<'), 'фильтры по тарифу и провайдеру');
 
 /* ───────── Обзор ───────── */
 section('Обзор');

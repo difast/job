@@ -14,6 +14,6 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
   const p = await db.payment.findFirst({ where: { id, userId: user.id, provider: 'stub' } });
   if (!p) throw new ApiError(404, 'Платёж не найден');
   if (p.status !== 'pending') throw new ApiError(409, 'Платёж уже завершён');
-  await applyStatus(p.id, action === 'succeed' ? 'succeeded' : 'canceled');
-  return json({ ok: true, redirect: `/billing?payment=${p.id}` });
+  await applyStatus(p.id, action === 'succeed' ? 'succeeded' : 'canceled', 'stub');
+  return json({ ok: true, redirect: `/billing/result?order=${p.id}` });
 });
