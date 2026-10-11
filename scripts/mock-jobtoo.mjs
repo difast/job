@@ -42,7 +42,9 @@ export function startMockJobToo({ port = 4100, secret }) {
       if (op === 'handoff') {
         state.handoffs.push({ requestId: rid, payload: data });
         // Как у JobToo на бою: первый запрос — 503, повтор с тем же X-Request-Id — 409 «ещё обрабатывается»
-        if (state.mode === 'busy') { state.busy ??= new Set(); if (state.busy.has(rid)) return send(409, { status: 'error', request_id: rid, error: { code: 'request_in_progress', message: 'Запрос ещё обрабатывается' } }); state.busy.add(rid); return send(503, { status: 'error', request_id: rid, error: { code: 'unavailable', message: 'Service unavailable' } }); }
+        if (state.mode === 'busy') { state.busy ??= new Set(); if (state.busy.has(rid)) return send(409, { status: 'error', request_id: rid, error: { code: 'request_in_progress', message: 'Запрос ещё обрабатывается' } }); state.busy.add(rid); return send(503, { status: 'error', request_id: rid, retry_after: 30, error: { code: 'unavailable', message: 'Service unavailable' } }); }
+        // Короткая недоступность: 503 с retry_after 1, повтор с тем же X-Request-Id проходит
+        if (state.mode === 'flaky') { state.flaky ??= new Set(); if (!state.flaky.has(rid)) { state.flaky.add(rid); return send(503, { status: 'error', request_id: rid, retry_after: 1, error: { code: 'unavailable', message: 'Service unavailable' } }); } }
         if (state.mode === 'error') return send(422, { status: 'error', request_id: rid, error: { code: 'resume_unreadable', message: 'JobToo: не удалось разобрать резюме' } });
         const login = state.mode === 'foreign' ? 'https://evil.example/login?code=x' : `http://localhost:${port}/sso/clymly?code=mock-${rid}`;
         const created = state.mode === 'created';

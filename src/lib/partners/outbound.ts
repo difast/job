@@ -54,18 +54,20 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
   const requestId = h.requestId;
   await track({ direction: 'out', event: 'handoff_sent', requestId, userId: user.id, partnerUserId: link?.externalUserId, placement: opts.placement, platform: opts.platform ?? 'web' });
 
-  const failed = async (code: string, message: string, status = 502) => {
+  const failed = async (code: string, message: string, status = 502, extra?: Record<string, unknown>) => {
     const durationMs = Date.now() - started;
     await db.partnerHandoff.update({ where: { id: h.id }, data: { status: 'error', errorCode: code, durationMs } });
     await track({ direction: 'out', event: 'handoff_failed', requestId, userId: user.id, errorCode: code, durationMs, placement: opts.placement, platform: opts.platform ?? 'web' });
-    throw new ApiError(status, message);
+    // Для поддержки JobToo: X-Request-Id и время с часовым поясом (без данных пользователя)
+    console.warn(`[integration] handoff failed: code=${code} request_id=${requestId} at=${new Date().toISOString()}`);
+    throw new ApiError(status, message, extra);
   };
 
   const res = await partnerPost<{ external_user_id?: string; account?: string; login_url?: string; expires_at?: string }>('handoff', payload, requestId);
   if (!res.ok) {
     if (res.code === 'timeout') return failed('timeout', 'JobToo не ответил вовремя. Попробуйте ещё раз.', 504);
     if (res.code === 'network') return failed('network', 'Не удалось связаться с JobToo. Попробуйте ещё раз.', 504);
-    if (res.status === 503) return failed(res.code, 'JobToo временно недоступен. Попробуйте через несколько минут.', 503);
+    if (res.status === 503) return failed(res.code, 'JobToo временно недоступен. Попробуйте через несколько минут.', 503, res.retryAfter ? { retryAfter: res.retryAfter } : undefined);
     return failed(res.code, res.message ?? 'JobToo не смог принять данные. Попробуйте позже.', res.status === 429 ? 429 : 502);
   }
   const data = res.data;

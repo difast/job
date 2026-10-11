@@ -1,7 +1,7 @@
 'use client';
 // Клиентские запросы к API: тайм-аут вместо бесконечного ожидания, понятные сообщения об ошибках.
 
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
+export type Result<T> = { ok: true; data: T } | { ok: false; error: string; status?: number; body?: Record<string, unknown> };
 
 export async function request<T = Record<string, unknown>>(
   url: string,
@@ -19,7 +19,7 @@ export async function request<T = Record<string, unknown>>(
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const fallback = res.status === 401 ? 'Сессия истекла — войдите снова.' : res.status >= 500 ? 'Сервис временно недоступен. Попробуйте ещё раз через минуту.' : 'Не удалось выполнить действие.';
-      return { ok: false, error: (data as { error?: string }).error ?? fallback, status: res.status };
+      return { ok: false, error: (data as { error?: string }).error ?? fallback, status: res.status, body: data as Record<string, unknown> };
     }
     return { ok: true, data: data as T };
   } catch (e) {

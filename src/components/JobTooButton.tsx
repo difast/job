@@ -32,7 +32,14 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, origin,
   const [checked, setChecked] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'redirect'>('idle');
   const [error, setError] = useState('');
+  const [wait, setWait] = useState(0); // сколько секунд JobToo просит подождать перед повтором
   const busy = phase !== 'idle';
+
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
 
   useEffect(() => {
     // показ кнопки — не чаще раза за сессию на каждое место
@@ -45,10 +52,15 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, origin,
   }, [placement]);
 
   async function go() {
-    if (busy) return;
+    if (busy || wait > 0) return;
     setPhase('sending'); setError('');
-    const r = await request<{ url: string; requestId: string }>('/api/integrations/jobtoo/handoff', { method: 'POST', json: { placement, vacancyId }, timeoutMs: 20_000 });
-    if (!r.ok) { setPhase('idle'); setError(r.error); return; }
+    const r = await request<{ url: string; requestId: string }>('/api/integrations/jobtoo/handoff', { method: 'POST', json: { placement, vacancyId }, timeoutMs: 45_000 });
+    if (!r.ok) {
+      setPhase('idle'); setError(r.error);
+      const ra = Number(r.body?.retryAfter);
+      if (Number.isFinite(ra) && ra > 0) setWait(Math.min(Math.ceil(ra), 600));
+      return;
+    }
     setPhase('redirect');
     await track('redirect_opened', placement, r.data.requestId);
     window.location.assign(r.data.url);
@@ -84,7 +96,7 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, origin,
         {ctx.label}<Icon name="external" size={15} />
       </Button>
       {error && !open && (
-        <ActionError className="mt-3" message={<>{error} Данные в JobToo не переданы.</>} onRetry={go}>
+        <ActionError className="mt-3" message={<>{error} Данные в JobToo не переданы.{wait > 0 && <span data-testid="jobtoo-wait"> Повторить можно через {wait} с.</span>}</>} onRetry={wait > 0 ? undefined : go}>
           {origin && <a href={origin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline">Открыть JobToo без переноса резюме<Icon name="external" size={13} /></a>}
         </ActionError>
       )}

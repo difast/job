@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireAdminPage } from '@/lib/admin/auth';
 import { parseFilters, report } from '@/lib/partners/analytics';
+import { db } from '@/lib/db';
 import { PageHeader, buttonClass, cx } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,12 @@ export default async function IntegrationsAdmin({ searchParams }: { searchParams
   await requireAdminPage();
   const sp = await searchParams;
   const f = parseFilters(sp);
-  const r = await report(f);
+  const [r, failures] = await Promise.all([
+    report(f),
+    // Последние неудачные обмены — X-Request-Id и время для запроса в поддержку JobToo
+    db.partnerHandoff.findMany({ where: { partner: 'jobtoo', status: 'error', createdAt: { gte: new Date(Date.now() - f.days * 86_400_000) } }, orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, direction: true, requestId: true, errorCode: true, placement: true, durationMs: true, createdAt: true } }),
+  ]);
+  const msk = (d: Date) => `${d.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} МСК (UTC+3)`;
   const q = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams(Object.entries({ days: String(f.days), placement: f.placement, platform: f.platform, ...patch }).filter(([, v]) => v) as [string, string][]);
     return `?${p}`;
@@ -63,6 +69,23 @@ export default async function IntegrationsAdmin({ searchParams }: { searchParams
           {r.errors.length ? <ul className="mt-3 divide-y divide-line text-sm">{r.errors.map((e) => <li key={e.direction + e.code} className="flex justify-between py-2"><span><code className="text-[13px]">{e.code}</code> <span className="text-muted">· {e.direction === 'out' ? 'Clymly → JobToo' : 'JobToo → Clymly'}</span></span><b className="tabular font-semibold">{e.n}</b></li>)}</ul> : <p className="mt-3 text-sm text-muted">Ошибок нет.</p>}
         </section>
       </div>
+      <section className="mt-4 overflow-x-auto rounded-2xl border border-line bg-white" aria-labelledby="fails-h" data-testid="jobtoo-failures">
+        <div className="px-5 pt-5"><h2 id="fails-h" className="text-[17px] font-semibold tracking-tight">Последние неудачные обмены</h2><p className="mt-1 text-[13px] text-muted">Для обращения в JobToo: X-Request-Id и время с часовым поясом.</p></div>
+        {failures.length ? (
+          <table className="mt-3 w-full min-w-[640px] text-sm">
+            <thead><tr className="border-b border-line text-left text-[13px] text-muted"><th className="px-5 py-2 font-medium">Время</th><th className="px-3 py-2 font-medium">Направление</th><th className="px-3 py-2 font-medium">Код</th><th className="px-3 py-2 font-medium">X-Request-Id</th><th className="px-3 py-2 font-medium">Место</th></tr></thead>
+            <tbody>{failures.map((x) => (
+              <tr key={x.id} className="border-b border-line last:border-0" data-testid="jobtoo-failure">
+                <td className="whitespace-nowrap px-5 py-2 tabular">{msk(x.createdAt)}</td>
+                <td className="whitespace-nowrap px-3 py-2">{x.direction === 'out' ? 'Clymly → JobToo' : 'JobToo → Clymly'}</td>
+                <td className="px-3 py-2"><code className="text-[12px]">{x.errorCode ?? '—'}</code></td>
+                <td className="px-3 py-2"><code className="select-all text-[12px]">{x.requestId}</code></td>
+                <td className="px-3 py-2 text-muted">{x.placement ?? '—'}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="px-5 pb-5 pt-3 text-sm text-muted">Неудачных обменов за период нет.</p>}
+      </section>
       <section className="mt-4 overflow-x-auto rounded-2xl border border-line bg-white">
         <table className="w-full min-w-[640px] text-sm">
           <thead><tr className="border-b border-line text-left text-[13px] text-muted"><th className="px-5 py-3 font-medium">День</th>{Object.values(LABELS).map((l) => <th key={l} className="px-3 py-3 text-right font-medium">{l}</th>)}</tr></thead>

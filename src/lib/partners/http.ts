@@ -1,12 +1,16 @@
 // Подписанные запросы Clymly → JobToo: JSON, HMAC-SHA256, тайм-аут 15 с,
-// повтор только при сетевой ошибке и 503 — не больше 2 раз и с тем же X-Request-Id.
+// повтор только при сетевой ошибке и 503 — не больше 2 раз и с тем же X-Request-Id. На 503 JobToo присылает retry_after
+// (секунды): раньше этого срока не повторяем; если ждать дольше нескольких секунд — отдаём ошибку сразу, с retryAfter.
 import { randomUUID } from 'node:crypto';
 import { OUTBOUND_TIMEOUT_MS, jobtoo } from './config';
 import { sign } from './signing';
 
 export type PartnerResponse<T> =
   | { ok: true; status: number; data: T; requestId: string; durationMs: number }
-  | { ok: false; status: number; code: string; message: string | null; requestId: string; durationMs: number };
+  | { ok: false; status: number; code: string; message: string | null; requestId: string; durationMs: number; retryAfter?: number };
+
+/** Повтор в рамках одного действия пользователя — только если JobToo просит подождать не дольше этого. */
+const MAX_INLINE_WAIT_S = 5;
 
 export async function partnerPost<T = Record<string, unknown>>(op: 'pull' | 'handoff' | 'events', payload: unknown, requestId: string = randomUUID()): Promise<PartnerResponse<T>> {
   const body = Buffer.from(JSON.stringify(payload));
@@ -33,7 +37,16 @@ export async function partnerPost<T = Record<string, unknown>>(op: 'pull' | 'han
     if (res.ok && data?.status === 'ok') return { ok: true, status: res.status, data, requestId, durationMs: Date.now() - started };
     const message = typeof data?.error?.message === 'string' && data.error.message.length < 300 ? data.error.message : null;
     last = { ok: false, status: res.status, code: String(data?.error?.code ?? `http_${res.status}`).slice(0, 40), message, requestId, durationMs: Date.now() - started };
-    if (res.status === 503) { unavailable ??= last; continue; }
+    if (res.status === 503) {
+      const raw = (data as { retry_after?: unknown } | null)?.retry_after ?? res.headers.get('retry-after');
+      const ra = Number(raw);
+      const wait = Number.isFinite(ra) && ra > 0 ? Math.min(Math.ceil(ra), 3600) : 0;
+      last = { ...last, ...(wait ? { retryAfter: wait } : {}) };
+      unavailable ??= last;
+      if (wait > MAX_INLINE_WAIT_S) break; // JobToo просит подождать — не повторяем раньше срока
+      if (wait && attempt < 2) await new Promise((r) => setTimeout(r, wait * 1000));
+      continue;
+    }
     // 409 «запрос ещё обрабатывается» на повторе после 503 — не новая ошибка: сообщаем исходную недоступность JobToo
     if (res.status === 409 && unavailable) return { ...unavailable, message: null, durationMs: Date.now() - started };
     break;

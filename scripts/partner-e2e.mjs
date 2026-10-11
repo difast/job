@@ -297,7 +297,21 @@ ok(r.status === 502 && out.error.includes('JobToo: не удалось разо�
 mock.state.mode = 'busy';
 r = await anna.json('/api/integrations/jobtoo/handoff', { placement: 'dashboard' });
 out = await r.json();
-ok(r.status === 503 && out.error.includes('JobToo временно недоступен') && !out.error.includes('обрабатывается'), '503 у JobToo, затем 409 на повторе: пользователь видит «JobToo временно недоступен», а не «ещё обрабатывается»');
+ok(r.status === 503 && out.error.includes('JobToo временно недоступен') && !out.error.includes('обрабатывается') && out.retryAfter === 30, '503 с retry_after 30: сразу понятная ошибка и срок повтора, без «ещё обрабатывается»');
+const busyId = mock.state.handoffs.at(-1).requestId;
+ok(mock.state.handoffs.filter((x) => x.requestId === busyId).length === 1, 'при retry_after 30 повтор раньше срока не отправляется');
+mock.state.mode = 'flaky';
+const before = mock.state.handoffs.length;
+r = await anna.json('/api/integrations/jobtoo/handoff', { placement: 'dashboard' });
+out = await r.json();
+const fl = mock.state.handoffs.slice(before);
+ok(r.status === 200 && out.url && fl.length === 2 && fl[0].requestId === fl[1].requestId, '503 с retry_after 1: один повтор через секунду с тем же X-Request-Id — передача прошла');
+{ const adm = new Client();
+  await adm.json('/api/auth/register', { name: 'Админ', email: ADMIN, password: 'password123', consent: true }).catch(() => {});
+  await adm.json('/api/auth/login', { email: ADMIN, password: 'password123' });
+  await adm.json('/api/profile', { professionId: 'product-manager', level: 'middle' }, 'PATCH');
+  page = await (await adm.req('/admin/integrations?days=30')).text(); }
+ok(page.includes('Последние неудачные обмены') && page.includes(busyId) && page.includes('МСК (UTC+3)'), 'админка: X-Request-Id и время неудачных обменов для поддержки JobToo');
 mock.state.mode = 'ok';
 
 // JobToo создаёт новый аккаунт: external_user_id пустой — связку не сохраняем; email_verified=true для подтверждённой почты
