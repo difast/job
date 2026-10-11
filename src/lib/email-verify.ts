@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { db } from './db';
 import { SITE_URL } from './brand';
-import { layout, mailEnabled, sendMail } from './mail';
+import { describeMailError, layout, mailEnabled, sendMail } from './mail';
 
 export const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -23,7 +23,8 @@ export async function sendVerification(user: { id: string; email: string; name: 
   try {
     return await sendMail({ to: user.email, subject: 'Подтвердите e-mail в Clymly', html, text, kind: 'verify' });
   } catch (e) {
-    console.error('[mail] verification send failed', (e as Error).message);
+    const d = describeMailError(e);
+    console.error(`[mail] verify: отправка не удалась (${d.kind}) — ${d.hint}`);
     return { sent: false, error: 'Не удалось отправить письмо. Попробуйте позже.' };
   }
 }

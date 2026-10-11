@@ -4,7 +4,7 @@
 import { db } from './db';
 import { SITE_URL } from './brand';
 import { COMPANY } from './legal';
-import { layout, mailEnabled, sendMail } from './mail';
+import { describeMailError, layout, mailEnabled, sendMail } from './mail';
 import { PLANS, formatRub, getPlan } from './billing/plans';
 import { PROVIDER_LABEL } from './billing/provider';
 
@@ -21,7 +21,8 @@ async function deliver(kind: string, to: string, subject: string, mail: { html: 
   try {
     return (await sendMail({ to, subject, kind, ...mail })).sent;
   } catch (e) {
-    console.error(`[mail] ${kind}: отправка не удалась —`, (e as Error).message?.slice(0, 200));
+    const d = describeMailError(e);
+    console.error(`[mail] ${kind}: отправка не удалась (${d.kind}) — ${d.hint}`);
     return false;
   }
 }

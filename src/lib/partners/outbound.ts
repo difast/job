@@ -65,6 +65,7 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
   if (!res.ok) {
     if (res.code === 'timeout') return failed('timeout', 'JobToo не ответил вовремя. Попробуйте ещё раз.', 504);
     if (res.code === 'network') return failed('network', 'Не удалось связаться с JobToo. Попробуйте ещё раз.', 504);
+    if (res.status === 503) return failed(res.code, 'JobToo временно недоступен. Попробуйте через несколько минут.', 503);
     return failed(res.code, res.message ?? 'JobToo не смог принять данные. Попробуйте позже.', res.status === 429 ? 429 : 502);
   }
   const data = res.data;

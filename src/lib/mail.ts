@@ -24,6 +24,25 @@ function transport() {
   return transporter;
 }
 
+/** Причина ошибки SMTP простыми словами — для логов и проверки в админке (без паролей и содержимого писем). */
+export function describeMailError(e: unknown): { kind: string; hint: string } {
+  const err = e as { code?: string; responseCode?: number; message?: string; command?: string };
+  const msg = (err?.message ?? '').slice(0, 200);
+  const code = err?.code ?? '';
+  if (code === 'EAUTH' || err?.responseCode === 535) return { kind: 'auth', hint: 'SMTP отклонил логин или пароль — проверьте SMTP_USER и SMTP_PASSWORD (для Яндекса/Mail.ru нужен пароль приложения)' };
+  if (code === 'EENVELOPE' || err?.responseCode === 553 || err?.responseCode === 550 || /sender|from/i.test(msg) && err?.command === 'MAIL FROM') return { kind: 'sender', hint: 'SMTP не разрешает отправлять от адреса из SMTP_FROM — адрес должен совпадать с ящиком SMTP_USER или быть разрешён в почтовом сервисе' };
+  if (code === 'ETIMEDOUT' || /timeout|ETIMEDOUT/i.test(msg)) return { kind: 'timeout', hint: 'Нет ответа от SMTP-сервера — порт может быть закрыт хостингом. Проверьте SMTP_HOST/SMTP_PORT или попробуйте порт 2525/587' };
+  if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ECONNECTION' || code === 'EDNS' || /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH/.test(msg)) return { kind: 'connect', hint: 'Не удалось подключиться к SMTP-серверу — проверьте SMTP_HOST и SMTP_PORT' };
+  if (code === 'ESOCKET' || /certificate|TLS|SSL|wrong version/i.test(msg)) return { kind: 'tls', hint: 'Ошибка TLS: для порта 465 нужен SSL, для 587 — STARTTLS. Проверьте пару SMTP_HOST/SMTP_PORT' };
+  return { kind: 'other', hint: `SMTP: ${msg || code || 'неизвестная ошибка'}` };
+}
+
+/** Проверка подключения и авторизации SMTP без отправки письма. */
+export async function verifySmtp(): Promise<{ ok: true } | { ok: false; kind: string; hint: string }> {
+  if (!mailEnabled()) return { ok: false, kind: 'config', hint: 'Не заданы SMTP_HOST и/или SMTP_FROM' };
+  try { await transport().verify(); return { ok: true }; } catch (e) { return { ok: false, ...describeMailError(e) }; }
+}
+
 export interface Mail { to: string; subject: string; text: string; html: string; kind?: string }
 
 /** Отправляет письмо. Без настроек SMTP — ничего не отправляет и сообщает об этом (в разработке — пишет в лог). */

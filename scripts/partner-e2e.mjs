@@ -294,6 +294,10 @@ mock.state.mode = 'error';
 r = await anna.json('/api/integrations/jobtoo/handoff', { placement: 'dashboard' });
 out = await r.json();
 ok(r.status === 502 && out.error.includes('JobToo: не удалось разобрать резюме'), 'ошибка JobToo показывается пользователю понятным текстом');
+mock.state.mode = 'busy';
+r = await anna.json('/api/integrations/jobtoo/handoff', { placement: 'dashboard' });
+out = await r.json();
+ok(r.status === 503 && out.error.includes('JobToo временно недоступен') && !out.error.includes('обрабатывается'), '503 у JobToo, затем 409 на повторе: пользователь видит «JobToo временно недоступен», а не «ещё обрабатывается»');
 mock.state.mode = 'ok';
 
 // JobToo создаёт новый аккаунт: external_user_id пустой — связку не сохраняем; email_verified=true для подтверждённой почты

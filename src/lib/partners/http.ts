@@ -12,8 +12,10 @@ export async function partnerPost<T = Record<string, unknown>>(op: 'pull' | 'han
   const body = Buffer.from(JSON.stringify(payload));
   const started = Date.now();
   let last: PartnerResponse<T> | null = null;
+  let unavailable: PartnerResponse<T> | null = null; // первый ответ 503 — настоящая причина неудачи
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
+    // JobToo держит запрос с тем же X-Request-Id «в обработке» — повторяем не сразу
+    if (attempt) await new Promise((r) => setTimeout(r, 1500 * attempt));
     const ts = String(Math.floor(Date.now() / 1000));
     let res: Response;
     try {
@@ -31,7 +33,10 @@ export async function partnerPost<T = Record<string, unknown>>(op: 'pull' | 'han
     if (res.ok && data?.status === 'ok') return { ok: true, status: res.status, data, requestId, durationMs: Date.now() - started };
     const message = typeof data?.error?.message === 'string' && data.error.message.length < 300 ? data.error.message : null;
     last = { ok: false, status: res.status, code: String(data?.error?.code ?? `http_${res.status}`).slice(0, 40), message, requestId, durationMs: Date.now() - started };
-    if (res.status !== 503) break;
+    if (res.status === 503) { unavailable ??= last; continue; }
+    // 409 «запрос ещё обрабатывается» на повторе после 503 — не новая ошибка: сообщаем исходную недоступность JobToo
+    if (res.status === 409 && unavailable) return { ...unavailable, message: null, durationMs: Date.now() - started };
+    break;
   }
   return last!;
 }
