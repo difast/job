@@ -62,10 +62,14 @@ model InterviewQuestion {
   sampleAnswer String
   keyPoints    String // JSON: string[]
   sortOrder    Int         @default(0)
+  // Вопросы, сгенерированные ИИ под конкретную вакансию пользователя (в общий банк не попадают)
+  vacancyId    String?
+  vacancy      Vacancy?    @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
 
   attempts PracticeAttempt[]
 
   @@index([professionId, level, type])
+  @@index([vacancyId, type])
 }
 
 // ───────── Пользователи ─────────
@@ -161,6 +165,7 @@ model Vacancy {
 
   adaptation   Adaptation?
   coverLetters CoverLetter[]
+  questions    InterviewQuestion[]
 
   @@index([userId, createdAt])
 }

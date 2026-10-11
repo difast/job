@@ -29,7 +29,7 @@ export const PATCH = handler(async (req: Request) => {
         const analysis = await analyzeResume(resume.text, ctx);
         await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: ctx.id, level: ctx.level, analyzedAt: new Date() } });
       }
-    } catch (e) { console.warn('[profile] resume re-analysis failed', e); }
+    } catch (e) { console.warn('[profile] resume re-analysis failed:', (e as Error).message); }
   }
   // Данные из JobToo, ожидавшие выбора профессии, применяются сразу после него
   let landing: string | null = null;

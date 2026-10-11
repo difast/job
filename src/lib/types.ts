@@ -38,6 +38,7 @@ export interface ResumeAnalysis {
   improvements: { title: string; detail: string }[];
   missingSkills: string[];
   experienceTips: string[];
+  limitations?: string[]; // что нельзя оценить из-за нехватки сведений или противоречий
   engine: Engine;
 }
 
@@ -47,7 +48,7 @@ export type ReqStatus = 'match' | 'partial' | 'missing';
 export interface VacancyAnalysis {
   title: string;
   matchScore: number;
-  requirements: { text: string; status: ReqStatus; note?: string }[];
+  requirements: { text: string; status: ReqStatus; note?: string; evidence?: string }[]; // evidence — фрагмент резюме, подтверждающий требование
   present: string[];
   missing: string[];
   suggestions: string[];
@@ -71,6 +72,9 @@ export interface AnswerFeedback {
   covered: string[];
   missed: string[];
   tips: string[];
+  criteria?: { relevance: number; specificity: number; structure: number; result: number }; // из них считается score
+  summary?: string; // почему такая оценка
+  improvedAnswer?: string; // улучшенная версия только на основе ответа пользователя
   engine: Engine;
 }
 

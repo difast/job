@@ -4,6 +4,7 @@ import { ApiError, handler, json } from '@/lib/http';
 import { extractResumeText, MAX_FILE_BYTES } from '@/lib/extract';
 import { analyzeResume } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
+import { aiRateLimit } from '@/lib/ai/limits';
 
 export const maxDuration = 60;
 
@@ -16,6 +17,10 @@ export const POST = handler(async (req: Request) => {
   if (!(file instanceof File) || !file.size) throw new ApiError(400, 'Выберите файл PDF или DOCX');
   if (file.size > MAX_FILE_BYTES) throw new ApiError(413, 'Файл больше 5 МБ');
   const text = await extractResumeText(file.name, Buffer.from(await file.arrayBuffer()));
+  // Повторная отправка того же файла (двойной клик, повтор после сетевой ошибки) не создаёт дубль и не тратит запрос к ИИ
+  const same = await db.resume.findFirst({ where: { userId: user.id, text, fileName: file.name, professionId: p.id, level: p.level, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } }, orderBy: { createdAt: 'desc' } });
+  if (same) return json({ id: same.id, analysis: JSON.parse(same.analysis), duplicate: true });
+  aiRateLimit(user.id);
   const analysis = await analyzeResume(text, p);
   const resume = await db.resume.create({
     data: { userId: user.id, fileName: file.name, text, analysis: JSON.stringify(analysis), professionId: p.id, level: p.level },
@@ -28,6 +33,7 @@ export const PUT = handler(async () => {
   const user = await requireApiUser();
   const p = await requireProfession(user);
   const resume = await requireResume(user.id);
+  aiRateLimit(user.id);
   const analysis = await analyzeResume(resume.text, p);
   await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: p.id, level: p.level, analyzedAt: new Date() } });
   return json({ id: resume.id, analysis });

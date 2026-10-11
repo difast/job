@@ -4,6 +4,7 @@ import { ApiError, handler, json } from '@/lib/http';
 import { trackFirstAction } from '@/lib/partners/events';
 import { adaptResume } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
+import { aiRateLimit } from '@/lib/ai/limits';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
 
 export const maxDuration = 60;
@@ -16,7 +17,9 @@ export const POST = handler(async (_req: Request, { params }: { params: Promise<
   if (!vacancy) throw new ApiError(404, 'Вакансия не найдена');
   const p = await requireProfession(user);
   const resume = await requireResume(user.id);
-  const analysis = parseJson<VacancyAnalysis>(vacancy.analysis, null as unknown as VacancyAnalysis);
+  const analysis = parseJson<VacancyAnalysis | null>(vacancy.analysis, null);
+  if (!analysis) throw new ApiError(409, 'Разбор вакансии повреждён. Добавьте вакансию заново.');
+  aiRateLimit(user.id);
   const { changes, engine } = await adaptResume(resume.text, vacancy.text, analysis, p);
   const data = { resumeId: resume.id, changes: JSON.stringify(changes), engine };
   const a = await db.adaptation.upsert({ where: { vacancyId: vacancy.id }, update: data, create: { vacancyId: vacancy.id, ...data } });

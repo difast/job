@@ -25,7 +25,7 @@ export default function VacancyAnalysisView({ a }: { a: VacancyAnalysis }) {
                 {items.map((r, i) => (
                   <li key={i} className="flex gap-3 px-6 py-2.5">
                     <Icon name={g.icon} size={16} strokeWidth={2.1} className={`mt-0.5 shrink-0 ${g.tone}`} />
-                    <div className="user-text min-w-0"><div className="text-[15px] leading-relaxed">{r.text}</div>{r.note && <div className="mt-0.5 text-[13px] text-muted">{r.note}</div>}</div>
+                    <div className="user-text min-w-0"><div className="text-[15px] leading-relaxed">{r.text}</div>{r.evidence && <div className="mt-0.5 text-[13px] text-ink-2" data-testid="req-evidence">В резюме: «{r.evidence}»</div>}{r.note && <div className="mt-0.5 text-[13px] text-muted">{r.note}</div>}</div>
                   </li>
                 ))}
               </ul>

@@ -11,7 +11,7 @@ export const GET = handler(async (req: Request) => {
   const p = await requireProfession(user);
   const type = z.enum(['hr', 'professional', 'manager']).parse(new URL(req.url).searchParams.get('type') ?? 'hr');
   const rows = await db.interviewQuestion.findMany({
-    where: { type, OR: [{ professionId: p.id }, { professionId: null }], AND: [{ OR: [{ level: p.level }, { level: null }] }] },
+    where: { type, vacancyId: null, OR: [{ professionId: p.id }, { professionId: null }], AND: [{ OR: [{ level: p.level }, { level: null }] }] },
     orderBy: [{ difficulty: 'asc' }, { sortOrder: 'asc' }],
     include: { attempts: { where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 1 } },
   });

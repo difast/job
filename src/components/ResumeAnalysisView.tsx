@@ -72,6 +72,12 @@ export function ResumeAnalysisView({ a }: { a: ResumeAnalysis }) {
           <ul className="mt-4 space-y-3">{a.experienceTips.map((t, i) => <li key={i} className="flex gap-2.5 text-sm leading-relaxed"><Icon name="chevron-right" size={15} className="mt-1 shrink-0 text-accent-600" />{t}</li>)}</ul>
         </section>
       </div>
+      {a.limitations && a.limitations.length > 0 && (
+        <section className="rounded-2xl border border-line bg-white p-6" aria-labelledby="limits" data-testid="resume-limitations">
+          <SectionTitle id="limits">Что не удалось оценить</SectionTitle>
+          <ul className="mt-3 space-y-2">{a.limitations.map((t, i) => <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-2"><Icon name="alert" size={15} className="mt-0.5 shrink-0 text-muted" />{t}</li>)}</ul>
+        </section>
+      )}
       <EngineNote engine={a.engine} />
     </div>
   );

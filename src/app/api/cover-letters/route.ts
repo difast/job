@@ -5,6 +5,7 @@ import { ApiError, handler, json } from '@/lib/http';
 import { trackFirstAction } from '@/lib/partners/events';
 import { extractCompany, generateLetter } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
+import { aiRateLimit } from '@/lib/ai/limits';
 import { applyChanges } from '@/lib/changes';
 import { parseJson, type Change } from '@/lib/types';
 
@@ -18,6 +19,7 @@ export const POST = handler(async (req: Request) => {
   if (!vacancy) throw new ApiError(404, 'Вакансия не найдена');
   const p = await requireProfession(user);
   const resume = await requireResume(user.id);
+  aiRateLimit(user.id);
   const variant = await db.coverLetter.count({ where: { vacancyId } });
   // Если резюме адаптировано — берём принятую версию
   const resumeText = vacancy.adaptation ? applyChanges(resume.text, parseJson<Change[]>(vacancy.adaptation.changes, [])) : resume.text;

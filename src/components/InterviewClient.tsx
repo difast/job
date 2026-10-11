@@ -7,7 +7,8 @@ import JobTooButton from './JobTooButton';
 import { request } from '@/lib/client';
 import { useConfirm } from './Confirm';
 
-interface Q { id: string; text: string; category: string; difficulty: number; sampleAnswer: string; keyPoints: string[]; lastScore: number | null }
+interface Q { id: string; text: string; category: string; difficulty: number; sampleAnswer: string; keyPoints: string[]; lastScore: number | null; tailored?: boolean }
+const CRITERIA: [keyof NonNullable<AnswerFeedback['criteria']>, string][] = [['relevance', 'По существу вопроса'], ['specificity', 'Конкретика и пример'], ['structure', 'Структура'], ['result', 'Результат']];
 const DIFF: Record<number, string> = { 1: 'Базовый', 2: 'Средний', 3: 'Сложный' };
 
 function Difficulty({ level }: { level: number }) {
@@ -35,6 +36,7 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
   const vac = vacancies.find((v) => v.id === vid) ?? null;
   const [qs, setQs] = useState<Q[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [tailNote, setTailNote] = useState('');
   const [i, setI] = useState(0);
   const [answer, setAnswer] = useState('');
   const [fb, setFb] = useState<AnswerFeedback | null>(null);
@@ -48,10 +50,21 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
   const unsent = !fb && answer.trim().length > 0;
 
   const reset = () => { setAnswer(''); setFb(null); setHint(null); setError(''); };
-  const load = useCallback((t: InterviewType) => {
-    setQs(null); setLoadError(false); setI(0); setScores([]); setDone(false); setAnswer(''); setFb(null); setHint(null); setError('');
-    request<{ questions: Q[] }>(`/api/interview/questions?type=${t}`, { timeoutMs: 30_000 }).then((r) => (r.ok ? setQs(r.data.questions ?? []) : setLoadError(true)));
-  }, []);
+  // Вопросы: сначала подготовленные ИИ под выбранную вакансию (если есть), затем банк вопросов профессии
+  const load = useCallback(async (t: InterviewType) => {
+    setQs(null); setLoadError(false); setTailNote(''); setI(0); setScores([]); setDone(false); setAnswer(''); setFb(null); setHint(null); setError('');
+    const [bank, tail] = await Promise.all([
+      request<{ questions: Q[] }>(`/api/interview/questions?type=${t}`, { timeoutMs: 30_000 }),
+      vid ? request<{ questions: Q[]; engine: string }>('/api/interview/vacancy-questions', { method: 'POST', json: { vacancyId: vid, type: t }, timeoutMs: 90_000 }) : Promise.resolve(null),
+    ]);
+    if (!bank.ok) { setLoadError(true); return; }
+    let list = bank.data.questions ?? [];
+    if (tail) {
+      if (tail.ok) list = [...(tail.data.questions ?? []), ...list];
+      else setTailNote(`Не удалось подготовить вопросы под вакансию (${tail.error.replace(/\.$/, '')}). Тренируемся по общему банку вопросов профессии.`);
+    }
+    setQs(list);
+  }, [vid]);
 
   // Неотправленный ответ не теряется молча при закрытии вкладки
   useEffect(() => {
@@ -78,7 +91,7 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
   async function submit() {
     if (!q || busy || answer.trim().length < 3) return;
     setBusy(true); setError('');
-    const r = await request<{ feedback: AnswerFeedback }>('/api/interview/answer', { method: 'POST', json: { questionId: q.id, answer }, timeoutMs: 90_000 });
+    const r = await request<{ feedback: AnswerFeedback }>('/api/interview/answer', { method: 'POST', json: { questionId: q.id, answer, vacancyId: vid || undefined }, timeoutMs: 90_000 });
     setBusy(false);
     if (!r.ok) { setError(`${r.error} Ваш ответ сохранён в поле — можно отправить ещё раз.`); return; }
     setFb(r.data.feedback); setScores((s) => [...s, r.data.feedback.score]); setHint(null);
@@ -172,7 +185,8 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
       )}
 
       {loadError && <ActionError message="Не удалось загрузить вопросы." onRetry={() => load(type)} />}
-      {qs === null && !loadError && <div className="rounded-2xl border border-line bg-white p-8"><Skeleton className="mb-4 h-4 w-32" /><Skeleton className="mb-6 h-7 w-4/5" /><Skeleton className="h-40 w-full" /></div>}
+      {tailNote && <div data-testid="tailored-note"><Alert tone="warn">{tailNote}</Alert></div>}
+      {qs === null && !loadError && <div className="rounded-2xl border border-line bg-white p-8" data-testid="questions-loading">{vid && <p className="mb-4 text-sm text-ink-2">Готовим вопросы под вакансию — это может занять до минуты…</p>}<Skeleton className="mb-4 h-4 w-32" /><Skeleton className="mb-6 h-7 w-4/5" /><Skeleton className="h-40 w-full" /></div>}
       {qs?.length === 0 && <div className="rounded-2xl border border-line bg-white p-8 text-sm text-ink-2">Для этого сочетания пока нет вопросов — база регулярно пополняется. Попробуйте другой тип собеседования.</div>}
 
       {done && qs && (
@@ -204,6 +218,7 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
           <div className="px-6 pb-7 pt-6 sm:px-9 sm:pt-8">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
               <span className="font-medium text-ink">Вопрос <span className="tabular">{i + 1}</span> из <span className="tabular">{total}</span></span>
+              {q.tailored && <span className="rounded-md bg-accent-50 px-2 py-0.5 text-[12px] font-medium text-accent-700" data-testid="tailored-badge">По вакансии</span>}
               <span className="text-muted">{q.category}</span>
               <Difficulty level={q.difficulty} />
               {q.lastScore !== null && <span className="text-muted">Прошлый результат: <span className="tabular text-ink">{q.lastScore}</span></span>}
@@ -223,7 +238,7 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
               <div className="fade-in mt-3 rounded-xl bg-canvas px-5 py-4 text-[14.5px] leading-relaxed" data-testid="hint">
                 {hint === 'points'
                   ? <ul className="space-y-1.5">{q.keyPoints.map((k) => <li key={k} className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" />{k}</li>)}</ul>
-                  : <p>{q.sampleAnswer}</p>}
+                  : <>{q.tailored && <p className="mb-1.5 text-[12px] text-muted">Пример структуры: в квадратных скобках — то, что нужно подставить из своего опыта.</p>}<p className="whitespace-pre-wrap">{q.sampleAnswer}</p></>}
               </div>
             )}
 
@@ -252,6 +267,13 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
                     <div className="text-sm font-medium sm:mt-2">{scoreVerdict(fb.score)}</div>
                   </div>
                   <div className="grid min-w-0 flex-1 gap-6">
+                    {fb.summary && <p className="user-text text-[15px] leading-relaxed" data-testid="feedback-summary">{fb.summary}</p>}
+                    {fb.criteria && (
+                      <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2" data-testid="feedback-criteria" aria-label="Оценка по критериям">
+                        {CRITERIA.map(([k, l]) => <div key={k} className="flex items-center justify-between gap-3 text-[13.5px]"><span className="text-ink-2">{l}</span><span className="tabular font-semibold">{fb.criteria![k]}</span></div>)}
+                        <p className="text-[12px] text-muted sm:col-span-2">Итог: по существу и конкретика — по 30 %, структура и результат — по 20 %.</p>
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-sans text-sm font-semibold" style={{ letterSpacing: 0 }}>Что хорошо</h3>
                       {fb.covered.length ? <ul className="mt-2 space-y-1.5 text-[14.5px]">{fb.covered.map((c) => <li key={c} className="flex gap-2.5"><Icon name="check" size={16} strokeWidth={2.2} className="mt-0.5 shrink-0 text-ink" />{c}</li>)}</ul> : <p className="mt-2 text-sm text-muted">Пока ни один ключевой пункт не раскрыт полностью.</p>}
@@ -268,7 +290,14 @@ export default function InterviewClient({ vacancies, initialVacancyId, history, 
                     </div>
                   </div>
                 </div>
-                <details className="group mt-6 rounded-xl bg-canvas px-5 py-3.5">
+                {fb.improvedAnswer && (
+                  <details className="group mt-6 rounded-xl border border-line px-5 py-3.5" data-testid="improved-answer">
+                    <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink hover:text-accent-700"><Icon name="chevron-right" size={14} className="transition-transform group-open:rotate-90" />Улучшенная версия вашего ответа</summary>
+                    <p className="mt-1.5 text-[12px] text-muted">Собрана только из того, что вы написали. В квадратных скобках — что стоит добавить из своего опыта.</p>
+                    <p className="mt-2.5 user-text whitespace-pre-wrap text-sm leading-relaxed">{fb.improvedAnswer}</p>
+                  </details>
+                )}
+                <details className="group mt-3 rounded-xl bg-canvas px-5 py-3.5">
                   <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink"><Icon name="chevron-right" size={14} className="transition-transform group-open:rotate-90" />Ваш ответ</summary>
                   <p className="mt-2.5 user-text whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{answer}</p>
                 </details>
