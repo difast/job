@@ -51,35 +51,54 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, origin,
     void track('button_shown', placement);
   }, [placement]);
 
-  async function go() {
-    if (busy || wait > 0) return;
+  /**
+   * JobToo открывается в новой вкладке. Вкладку открываем сразу по клику (иначе браузер заблокирует её как всплывающее окно),
+   * а адрес подставляем, когда сервер вернёт одноразовую ссылку. При ошибке вкладка закрывается.
+   */
+  function openTab(): Window | null {
+    const w = window.open('', '_blank');
+    if (!w) return null;
+    try {
+      w.opener = null; // JobToo не получает доступ к вкладке Clymly
+      w.document.title = 'Переход в JobToo';
+      w.document.body.innerHTML = '<p style="font:16px/1.5 system-ui,sans-serif;color:#22201d;padding:32px">Передаём профиль и резюме в JobToo…</p>';
+    } catch { /* вкладка уже недоступна — не критично */ }
+    return w;
+  }
+
+  async function go(tab: Window | null = null) {
+    if (busy || wait > 0) { tab?.close(); return; }
     setPhase('sending'); setError('');
     const r = await request<{ url: string; requestId: string }>('/api/integrations/jobtoo/handoff', { method: 'POST', json: { placement, vacancyId }, timeoutMs: 45_000 });
     if (!r.ok) {
+      tab?.close();
       setPhase('idle'); setError(r.error);
       const ra = Number(r.body?.retryAfter);
       if (Number.isFinite(ra) && ra > 0) setWait(Math.min(Math.ceil(ra), 600));
       return;
     }
     setPhase('redirect');
-    await track('redirect_opened', placement, r.data.requestId);
+    void track('redirect_opened', placement, r.data.requestId);
+    if (tab && !tab.closed) { tab.location.href = r.data.url; setPhase('idle'); return; }
+    // вкладку заблокировал браузер — открываем JobToo в текущей
     window.location.assign(r.data.url);
   }
 
   function click() {
     if (busy) return;
     void track('button_clicked', placement);
-    if (consent) return void go();
+    if (consent) return void go(openTab());
     setChecked(false); setOpen(true);
     void track('consent_shown', placement);
   }
 
   async function accept() {
+    const tab = openTab();
     setPhase('sending'); setError('');
     const r = await request('/api/integrations/jobtoo/consent', { method: 'POST', json: { placement }, timeoutMs: 20_000 });
-    if (!r.ok) { setPhase('idle'); setError(r.error); return; }
+    if (!r.ok) { tab?.close(); setPhase('idle'); setError(r.error); return; }
     setConsent(true); setOpen(false); setPhase('idle');
-    await go();
+    await go(tab);
   }
 
   function decline() {
@@ -92,11 +111,11 @@ export default function JobTooButton({ placement, vacancyId, hasConsent, origin,
     <div className={cx(full && 'w-full', className)}>
       <Button variant="partner" size={size} className={full ? 'w-full' : undefined} onClick={click} loading={busy}
         loadingText={phase === 'redirect' ? 'Открываем JobToo…' : 'Передаём профиль и резюме…'}
-        aria-label={`${ctx.label} — откроется сайт JobToo`} data-testid={`jobtoo-${placement}`}>
+        aria-label={`${ctx.label} — откроется сайт JobToo в новой вкладке`} data-testid={`jobtoo-${placement}`}>
         {ctx.label}<Icon name="external" size={15} />
       </Button>
       {error && !open && (
-        <ActionError className="mt-3" message={<>{error} Данные в JobToo не переданы.{wait > 0 && <span data-testid="jobtoo-wait"> Повторить можно через {wait} с.</span>}</>} onRetry={wait > 0 ? undefined : go}>
+        <ActionError className="mt-3" message={<>{error} Данные в JobToo не переданы.{wait > 0 && <span data-testid="jobtoo-wait"> Повторить можно через {wait} с.</span>}</>} onRetry={wait > 0 ? undefined : () => void go(openTab())}>
           {origin && <a href={origin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline">Открыть JobToo без переноса резюме<Icon name="external" size={13} /></a>}
         </ActionError>
       )}

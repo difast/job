@@ -313,15 +313,17 @@ if (process.env.JOBTOO === '1') {
       await btn.click();
       await p.getByTestId('jobtoo-consent').check();
       await shot('G1-jobtoo-consent', false, p);
-      await p.getByTestId('jobtoo-consent-ok').click();
-      await p.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
-      ok((await p.textContent('h1')).includes('JobToo'), 'после согласия — переход в кабинет JobToo по одноразовой ссылке');
+      const [tab] = await Promise.all([c.waitForEvent('page'), p.getByTestId('jobtoo-consent-ok').click()]);
+      await tab.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
+      ok((await tab.textContent('h1')).includes('JobToo'), 'после согласия — кабинет JobToo открыт в новой вкладке по одноразовой ссылке');
+      ok(p.url().endsWith('/resume') && await tab.evaluate(() => window.opener === null), 'Clymly остаётся открытым в своей вкладке, у JobToo нет доступа к ней (opener = null)');
+      await tab.close();
       ok(mock.state.handoffs.length === 1 && mock.state.badSignatures === 0, 'JobToo получил один подписанный запрос');
     } else {
-      await btn.click();
-      await p.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
-      ok(true, 'mobile: повторный переход — без окна согласия');
-      await p.goBack();
+      const [tab] = await Promise.all([c.waitForEvent('page'), btn.click()]);
+      await tab.waitForURL('http://localhost:4100/sso/clymly**', { timeout: 20_000 });
+      ok(p.url().endsWith('/resume'), 'mobile: повторный переход — без окна согласия, JobToo в новой вкладке');
+      await tab.close();
       await p.waitForSelector('[data-testid=jobtoo-resume]');
       await shot('G2-jobtoo-mobile', false, p);
       ok(!(await overflow(p)), 'mobile: «Моё резюме» с блоком JobToo без горизонтального скролла');
@@ -345,14 +347,17 @@ if (process.env.JOBTOO === '1') {
     await p.getByTestId('inbound-consent').check();
     await p.getByTestId('inbound-accept').click();
     await p.waitForURL('**/vacancies/**', { timeout: 30_000 });
-    ok(await p.locator('[data-testid=match-score]').isVisible(), `${label}: после согласия — сразу анализ вакансии из JobToo`);
+    ok(await p.locator('[data-testid=match-score]').waitFor({ timeout: 15_000 }).then(() => true, () => false), `${label}: после согласия — сразу анализ вакансии из JobToo`);
     await c.close();
   }
   mock.state.mode = 'error';
   { const c = await browser.newContext({ storageState: await ctx.storageState() }); const p = await c.newPage();
-    await p.goto(BASE + '/dashboard'); await p.getByTestId('jobtoo-dashboard').click();
+    await p.goto(BASE + '/dashboard');
+    const [tab] = await Promise.all([c.waitForEvent('page'), p.getByTestId('jobtoo-dashboard').click()]);
     await p.waitForSelector('text=JobToo: не удалось разобрать резюме');
     ok(await p.getByRole('button', { name: 'Повторить' }).isVisible() && p.url().endsWith('/dashboard'), 'ошибка JobToo: понятный текст и «Повторить», пользователь остаётся в Clymly');
+    await tab.waitForEvent('close', { timeout: 5_000 }).catch(() => {});
+    ok(tab.isClosed(), 'при ошибке пустая вкладка JobToo закрывается');
     await c.close(); }
   await mock.close();
 }
