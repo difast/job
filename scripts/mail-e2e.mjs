@@ -115,9 +115,28 @@ ok(r.status === 200 && jt.hasPassword && jt.emailVerifiedAt, 'аккаунт б�
 
 /* ───────── Смена пароля в настройках ───────── */
 section('Смена пароля в настройках');
-r = await anon.json('/api/profile/password', { current: 'newpassword456', password: 'settings-pass-7' });
+const codeOf = (m) => m?.body.match(/\b(\d{6})\b/)?.[1];
+r = await anon.json('/api/profile/password', { password: 'settings-pass-7' });
+ok(r.status === 400 && (await r.json()).error.includes('6 цифр'), 'без кода из письма пароль не сменить');
+r = await anon.json('/api/profile/code', { purpose: 'password' });
+const pc1 = await waitMail(email, 'code-password');
+ok(r.status === 200 && !!pc1 && pc1.subject === 'Код для смены пароля в Clymly' && /\d{6}/.test(pc1.body) && pc1.body.includes('15 минут'), 'письмо «Код для смены пароля» с 6-значным кодом');
+ok((await anon.json('/api/profile/code', { purpose: 'password' })).status === 429, 'повторный код — не чаще раза в минуту');
+const C2 = new Client(); await C2.json('/api/auth/login', { email, password: 'newpassword456' });
+const bad = codeOf(pc1) === '000000' ? '111111' : '000000';
+r = await anon.json('/api/profile/password', { code: bad, password: 'settings-pass-7' });
+ok(r.status === 400 && (await r.json()).error.includes('Осталось попыток: 4'), 'неверный код отклонён, показан остаток попыток');
+r = await anon.json('/api/profile/password', { code: codeOf(pc1), password: 'settings-pass-7' });
 const ch2 = await waitMail(email, 'password-changed', 2);
-ok(r.status === 200 && !!ch2 && ch2.body.includes('в настройках'), 'письмо «пароль изменён» после смены в настройках');
+ok(r.status === 200 && !!ch2 && ch2.body.includes('в настройках') && ch2.body.includes('других устройствах'), 'пароль сменён по коду; письмо «Пароль изменён»');
+ok((await anon.json('/api/billing/checkout', { planId: 'x' })).status === 400 && (await C2.json('/api/billing/checkout', { planId: 'x' })).status === 401, 'текущий сеанс остался, другие завершены');
+ok((await new Client().json('/api/auth/login', { email, password: 'settings-pass-7' })).status === 200, 'новый пароль подходит');
+ok((await anon.json('/api/profile/password', { code: codeOf(pc1), password: 'another-pass-9' })).status === 400, 'код срабатывает один раз');
+const bf = new Client(); await register(`brute_${T}@example.com`, bf);
+await bf.json('/api/profile/code', { purpose: 'password' });
+const bc = codeOf(await waitMail(`brute_${T}@example.com`, 'code-password'));
+for (let i = 0; i < 5; i++) await bf.json('/api/profile/password', { code: bc === '000000' ? '111111' : '000000', password: 'brute-pass-1' });
+ok((await bf.json('/api/profile/password', { code: bc, password: 'brute-pass-1' })).status === 400, 'после 5 неверных попыток код больше не принимается даже верный');
 
 /* ───────── Оплата ───────── */
 section('Оплата');
@@ -160,8 +179,32 @@ ok(mails(fresh).every((m) => m.kind === 'verify'), 'пользователю Fre
 
 /* ───────── Безопасность писем ───────── */
 section('Содержимое писем');
+/* ───────── Удаление аккаунта ───────── */
+section('Удаление аккаунта');
+const delEmail = `del_${T}@example.com`;
+const D = await register(delEmail);
+let dd = await (await D.json('/api/billing/checkout', { planId: 'pro-month' })).json();
+await D.json(`/api/billing/stub/${dd.paymentId}`, { action: 'succeed' });
+const dUser = await db.user.findUnique({ where: { email: delEmail } });
+ok((await D.json('/api/profile', {}, 'DELETE')).status === 400, 'без кода аккаунт не удалить');
+await D.json('/api/profile/code', { purpose: 'delete' });
+const dc = await waitMail(delEmail, 'code-delete');
+ok(!!dc && dc.subject === 'Код для удаления аккаунта Clymly' && dc.body.includes('необратимо'), 'письмо «Код для удаления аккаунта»');
+const D2 = new Client(); await D2.json('/api/auth/login', { email: delEmail, password: 'password123' });
+r = await D.json('/api/profile', { code: codeOf(dc) }, 'DELETE');
+ok(r.status === 200 && !D.jar.has('session'), 'аккаунт удалён по коду, сеанс завершён');
+const gone = await db.user.findUnique({ where: { id: dUser.id } });
+ok(!!gone.deletedAt && gone.email !== delEmail && gone.name === 'Удалённый пользователь' && gone.plan === 'free' && !gone.autopayPlan, 'личные данные стёрты, Pro и автопродление сняты');
+ok((await db.resume.count({ where: { userId: dUser.id } })) === 0 && (await db.session.count({ where: { userId: dUser.id } })) === 0, 'резюме и все сеансы удалены');
+ok((await db.payment.count({ where: { userId: dUser.id, status: 'succeeded' } })) === 1, 'платёж сохранён (обезличенно) для учёта');
+ok((await D2.json('/api/billing/checkout', { planId: 'x' })).status === 401 && (await new Client().json('/api/auth/login', { email: delEmail, password: 'password123' })).status === 401, 'войти в удалённый аккаунт нельзя');
+const ad = await waitMail(delEmail, 'account-deleted');
+ok(!!ad && ad.subject === 'Аккаунт Clymly удалён' && ad.body.includes('Автопродление Pro отключено') && ad.body.includes('обезличенном'), 'письмо «Аккаунт удалён»');
+ok((await (await new Client().req('/login?deleted=1')).text()).includes('Аккаунт удалён'), 'после удаления на странице входа — сообщение');
+ok((await new Client().json('/api/auth/register', { name: 'Снова', email: delEmail, password: 'password123', consent: true })).status === 200, 'с тем же адресом можно зарегистрироваться заново');
+
 const all = smtp.state.messages.map(parse);
-ok(all.every((m) => !/password123|newpassword456|settings-pass-7/.test(m.body)), 'пароли в письма не попадают');
+ok(all.every((m) => !/password123|newpassword456|settings-pass-7|brute-pass-1/.test(m.body)), 'пароли в письма не попадают');
 ok(all.every((m) => m.kind), 'у каждого письма есть тип');
 
 await smtp.close(); await db.$disconnect();

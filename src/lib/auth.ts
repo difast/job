@@ -28,6 +28,12 @@ export async function destroySession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** Завершает все сеансы пользователя, кроме текущего (после смены пароля в настройках). */
+export async function endOtherSessions(userId: string) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  await db.session.deleteMany({ where: { userId, ...(token ? { id: { not: hashToken(token) } } : {}) } });
+}
+
 export async function getUser() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;

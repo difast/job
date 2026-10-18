@@ -144,7 +144,11 @@ ok((await anna.req('/api/resume', { method: 'PUT' })).status === 200, 'согл�
 page = await (await anna.req('/settings')).text();
 ok(page.includes('Задайте пароль') && page.includes('JobToo → Clymly') && page.includes('Аккаунт связан'), 'настройки: задать пароль, связь и история');
 ok(!page.includes('+79990000000'), 'телефон не сохранён');
-ok((await anna.json('/api/profile/password', { password: 'newpass123' })).status === 200 && (await new Client().json('/api/auth/login', { email: `jt_${T}_1@example.com`, password: 'newpass123' })).status === 200, 'пароль задан — вход по e-mail и паролю работает');
+const pwBefore = smtp.state.messages.filter((x) => x.to.includes(`jt_${T}_1@example.com`)).length;
+ok((await anna.json('/api/profile/password', { password: 'newpass123' })).status === 400, 'без кода из письма пароль не задать');
+await anna.json('/api/profile/code', { purpose: 'password' });
+const pwCode = (await mailFor(`jt_${T}_1@example.com`, pwBefore))?.raw.match(/>(\d{6})</)?.[1];
+ok((await anna.json('/api/profile/password', { code: pwCode, password: 'newpass123' })).status === 200 && (await new Client().json('/api/auth/login', { email: `jt_${T}_1@example.com`, password: 'newpass123' })).status === 200, 'пароль задан по коду из письма — вход по e-mail и паролю работает');
 await sleep(1500);
 ok(mock.state.events.some((e) => e.event === 'login_completed' && e.request_id === mock.handoffRequestId(code1)), 'JobToo получил login_completed с их handoff_request_id');
 

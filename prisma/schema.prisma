@@ -105,6 +105,8 @@ model User {
   autopayNoticeAt DateTime?
   autopayAmount   Int?
   autopayLastTry  DateTime?
+  // Аккаунт удалён пользователем: личные данные стёрты, запись осталась обезличенной ради учёта платежей
+  deletedAt       DateTime?
   createdAt       DateTime    @default(now())
 
   sessions        Session[]
@@ -118,16 +120,17 @@ model User {
   partnerConsents PartnerConsent[]
 }
 
-// Одноразовые ссылки из писем (подтверждение e-mail). Храним только sha256 токена.
+// Одноразовые ссылки и коды из писем (подтверждение e-mail, восстановление пароля, коды подтверждения). Храним только sha256.
 model EmailToken {
   id        String    @id @default(cuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String    @unique
-  purpose   String // verify | reset
+  purpose   String // verify | reset | code-password | code-delete
   email     String // адрес, который подтверждается
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int       @default(0) // неверных вводов (для кодов из письма)
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])

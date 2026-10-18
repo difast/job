@@ -1,6 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { request } from '@/lib/client';
 import { useConfirm } from './Confirm';
 import { useToast } from './Toast';
@@ -34,14 +34,58 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
   const [error, setError] = useState('');
   const [intError, setIntError] = useState('');
 
+  // Смена пароля и удаление аккаунта подтверждаются кодом из письма (если почта не настроена — паролем)
+  const [step, setStep] = useState<null | 'password' | 'delete'>(null);
+  const [code, setCode] = useState('');
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [delPass, setDelPass] = useState('');
+  const [delError, setDelError] = useState('');
+  useEffect(() => {
+    if (resendAt <= Date.now()) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [resendAt]);
+  const wait = Math.max(0, Math.ceil((resendAt - now) / 1000));
+
+  async function sendCode(purpose: 'password' | 'delete', setErr: (s: string) => void) {
+    setBusy(`code-${purpose}`); setErr('');
+    const r = await request('/api/profile/code', { method: 'POST', json: { purpose }, timeoutMs: 30_000 });
+    setBusy(null);
+    if (!r.ok) { setErr(r.error); return false; }
+    setStep(purpose); setCode(''); setResendAt(Date.now() + 60_000); setNow(Date.now());
+    toast(`Код отправлен на ${email}`);
+    return true;
+  }
+  function cancelCode() { setStep(null); setCode(''); setError(''); setDelError(''); }
+
   async function savePassword(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (mailOn && step !== 'password') { await sendCode('password', setError); return; }
     setBusy('pass'); setError('');
-    const r = await request('/api/profile/password', { method: 'POST', json: { current: hasPassword ? current : undefined, password: pass }, timeoutMs: 20_000 });
+    const r = await request('/api/profile/password', { method: 'POST', json: mailOn ? { code, password: pass } : { current: hasPassword ? current : undefined, password: pass }, timeoutMs: 20_000 });
     setBusy(null);
     if (!r.ok) { setError(r.error); return; }
-    setCurrent(''); setPass(''); toast(hasPassword ? 'Пароль изменён' : 'Пароль задан — теперь можно входить по e-mail и паролю'); router.refresh();
+    setCurrent(''); setPass(''); setCode(''); setStep(null);
+    toast(hasPassword ? 'Пароль изменён. Вход на других устройствах завершён' : 'Пароль задан — теперь можно входить по e-mail и паролю'); router.refresh();
+  }
+
+  async function startDelete() {
+    if (busy) return;
+    const ok = await confirm({ title: 'Удалить аккаунт?', text: `Будут безвозвратно удалены профиль, резюме, вакансии, адаптации, сопроводительные письма и история тренировок. Сохранённые карты отвяжутся, автопродление отключится, оставшийся срок Pro сгорит.${mailOn ? ' Для подтверждения пришлём код на почту.' : ''}`, confirm: mailOn ? 'Получить код' : 'Продолжить', danger: true });
+    if (!ok) return;
+    if (mailOn) await sendCode('delete', setDelError); else setStep('delete');
+  }
+
+  async function confirmDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy('delete'); setDelError('');
+    const r = await request('/api/profile', { method: 'DELETE', json: mailOn ? { code } : { password: delPass }, timeoutMs: 30_000 });
+    setBusy(null);
+    if (!r.ok) { setDelError(r.error); return; }
+    window.location.href = '/login?deleted=1';
   }
 
   async function act(kind: 'revoke' | 'unlink') {
@@ -69,14 +113,22 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
           {!emailVerified && mailOn && <ResendVerification />}
         </div>
       </Row>
-      <Row title={hasPassword ? 'Пароль' : 'Задайте пароль'} hint={hasPassword ? 'Для входа по e-mail и паролю.' : 'Аккаунт создан при переходе из JobToo. Задайте пароль, чтобы входить в Clymly напрямую.'}>
+      <Row title={hasPassword ? 'Пароль' : 'Задайте пароль'} hint={hasPassword ? `Для входа по e-mail и паролю.${mailOn ? ' Смену подтвердим кодом из письма.' : ''}` : 'Аккаунт создан при переходе из JobToo. Задайте пароль, чтобы входить в Clymly напрямую.'}>
         <form onSubmit={savePassword} className="space-y-2.5" data-testid="password-form">
-          {hasPassword && <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} aria-label="Текущий пароль" />}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input type="password" autoComplete="new-password" placeholder="Новый пароль, минимум 8 символов" value={pass} onChange={(e) => setPass(e.target.value)} className={input} aria-label="Новый пароль" minLength={8} required />
-            <Button type="submit" variant="secondary" disabled={!!busy || pass.length < 8 || (hasPassword && !current)}>{busy === 'pass' && <Spinner />}{hasPassword ? 'Сменить' : 'Задать пароль'}</Button>
+          {!mailOn && hasPassword && <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} aria-label="Текущий пароль" />}
+          <input type="password" autoComplete="new-password" placeholder="Новый пароль, минимум 8 символов" value={pass} onChange={(e) => setPass(e.target.value)} className={input} aria-label="Новый пароль" minLength={8} required disabled={step === 'password'} />
+          {step === 'password' && (
+            <div className="space-y-2" data-testid="password-code-step">
+              <p className="text-sm text-ink-2">Мы отправили 6-значный код на <span className="font-medium user-text">{email}</span>. Он действует 15 минут.</p>
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="Код из письма" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`${input} tracking-[0.3em]`} aria-label="Код из письма" data-testid="password-code" />
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="secondary" disabled={!!busy || pass.length < 8 || (!mailOn && hasPassword && !current) || (step === 'password' && code.length !== 6)} data-testid="password-submit">{(busy === 'pass' || busy === 'code-password') && <Spinner />}{step === 'password' ? 'Подтвердить' : mailOn ? 'Получить код' : hasPassword ? 'Сменить' : 'Задать пароль'}</Button>
+            {step === 'password' && <Button type="button" size="sm" variant="ghost" disabled={!!busy || wait > 0} onClick={() => sendCode('password', setError)} data-testid="password-resend">{wait > 0 ? `Отправить ещё раз через ${wait} с` : 'Отправить код ещё раз'}</Button>}
+            {step === 'password' && <Button type="button" size="sm" variant="ghost" disabled={!!busy} onClick={cancelCode}>Отмена</Button>}
           </div>
-          {error && <Alert>{error} Введённые данные сохранены в полях.</Alert>}
+          {error && <Alert>{error}</Alert>}
         </form>
       </Row>
       {integration && (
@@ -111,6 +163,26 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
           </div>
         </Row>
       )}
+      <Row title="Удаление аккаунта" hint="Профиль и все материалы удаляются безвозвратно. Сведения об оплатах остаются в обезличенном виде, как требует закон.">
+        {step === 'delete' ? (
+          <form onSubmit={confirmDelete} className="space-y-2.5" data-testid="delete-form">
+            {mailOn
+              ? <><p className="text-sm text-ink-2">Введите код из письма, отправленного на <span className="font-medium user-text">{email}</span>.</p><input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="Код из письма" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`${input} tracking-[0.3em]`} aria-label="Код из письма" data-testid="delete-code" /></>
+              : <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={delPass} onChange={(e) => setDelPass(e.target.value)} className={input} aria-label="Текущий пароль" />}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" variant="danger" disabled={!!busy || (mailOn ? code.length !== 6 : !delPass)} data-testid="delete-confirm">{busy === 'delete' && <Spinner />}Удалить навсегда</Button>
+              {mailOn && <Button type="button" size="sm" variant="ghost" disabled={!!busy || wait > 0} onClick={() => sendCode('delete', setDelError)}>{wait > 0 ? `Отправить ещё раз через ${wait} с` : 'Отправить код ещё раз'}</Button>}
+              <Button type="button" size="sm" variant="ghost" disabled={!!busy} onClick={cancelCode}>Отмена</Button>
+            </div>
+            {delError && <Alert>{delError}</Alert>}
+          </form>
+        ) : (
+          <div className="space-y-2.5">
+            <Button variant="danger" size="sm" disabled={!!busy || step === 'password'} onClick={startDelete} data-testid="delete-account">{busy === 'code-delete' && <Spinner />}Удалить аккаунт</Button>
+            {delError && <Alert>{delError}</Alert>}
+          </div>
+        )}
+      </Row>
       <Row title="Поддержка" hint="Вопросы по работе сервиса, оплате и персональным данным.">
         <a href="mailto:support@clymly.ru" className="font-medium text-accent-600 hover:text-accent-700" data-testid="support-email">support@clymly.ru</a>
       </Row>

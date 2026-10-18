@@ -9,7 +9,7 @@ import { request, safeNext } from '@/lib/client';
 
 const input = 'h-11 w-full rounded-lg border border-line-strong bg-white px-3.5 text-[15px] outline-none transition-shadow placeholder:text-muted focus:border-accent-500 focus:shadow-[0_0_0_3px_var(--color-accent-100)]';
 
-export default function AuthForm({ mode, next: nextRaw }: { mode: 'login' | 'register'; next?: string }) {
+export default function AuthForm({ mode, next: nextRaw, notice }: { mode: 'login' | 'register'; next?: string; notice?: string }) {
   const router = useRouter();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,6 +37,7 @@ export default function AuthForm({ mode, next: nextRaw }: { mode: 'login' | 'reg
           <p className="mt-2 text-[15px] text-ink-2">{isReg ? 'Подготовьтесь к поиску работы под вашу профессию. Это бесплатно.' : 'Войдите, чтобы продолжить подготовку.'}</p>
           {next?.startsWith('/link/jobtoo') && <Alert tone="info" className="mt-5">Войдите, чтобы связать аккаунт Clymly с JobToo.</Alert>}
           {next?.startsWith('/billing') && <Alert tone="info" className="mt-5">{isReg ? 'После регистрации и выбора профессии откроется страница подключения Clymly Pro.' : 'После входа откроется страница подключения Clymly Pro.'}</Alert>}
+          {notice && <Alert tone="info" className="mt-5">{notice}</Alert>}
           <form onSubmit={submit} className="mt-8 space-y-4" noValidate={false}>
             {isReg && (
               <label className="block text-sm font-medium">Имя

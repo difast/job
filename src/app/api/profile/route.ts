@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { requireApiUser } from '@/lib/auth';
+import { SESSION_COOKIE, requireApiUser, verifyPassword } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { mailEnabled } from '@/lib/mail';
+import { consumeCode } from '@/lib/email-code';
+import { deleteAccount } from '@/lib/account-delete';
 import { ApiError, handler, json } from '@/lib/http';
 import { LEVELS } from '@/lib/types';
 import { analyzeResume } from '@/lib/ai';
@@ -35,4 +39,17 @@ export const PATCH = handler(async (req: Request) => {
   let landing: string | null = null;
   if (updated.professionId && updated.level) landing = await applyPendingImports(user.id).catch(() => null);
   return json({ ok: true, professionId: updated.professionId, level: updated.level, name: updated.name, landing });
+});
+
+const delSchema = z.object({ code: z.string().max(20).optional(), password: z.string().max(200).optional() });
+
+/** Удаление аккаунта: подтверждение кодом из письма (без почты — паролем). */
+export const DELETE = handler(async (req: Request) => {
+  const user = await requireApiUser();
+  const { code, password } = delSchema.parse(await req.json().catch(() => ({})));
+  if (mailEnabled()) await consumeCode(user, 'delete', code);
+  else if (!(user.hasPassword && password && (await verifyPassword(password, user.passwordHash)))) throw new ApiError(400, user.hasPassword ? 'Пароль указан неверно' : 'Чтобы удалить аккаунт, напишите нам на support@clymly.ru');
+  await deleteAccount(user.id);
+  (await cookies()).delete(SESSION_COOKIE);
+  return json({ ok: true });
 });

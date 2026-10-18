@@ -45,7 +45,7 @@ export const sendPasswordReset = (u: { name: string; email: string }, url: strin
 export function passwordChangedMail(u: { name: string; email: string }, how: 'reset' | 'settings') {
   return layout({
     title: 'Пароль изменён',
-    intro: `${first(u.name)}, пароль от аккаунта ${u.email} в Clymly ${how === 'reset' ? 'был изменён по ссылке восстановления' : 'был изменён в настройках'} ${date(new Date())}.${how === 'reset' ? ' Все прежние сеансы входа завершены.' : ''}\n\nЕсли это были вы — ничего делать не нужно.`,
+    intro: `${first(u.name)}, пароль от аккаунта ${u.email} в Clymly ${how === 'reset' ? 'был изменён по ссылке восстановления' : 'был изменён в настройках'} ${date(new Date())}. ${how === 'reset' ? 'Все прежние сеансы входа завершены.' : 'Вход на других устройствах завершён — там понадобится новый пароль.'}\n\nЕсли это были вы — ничего делать не нужно.`,
     button: 'Войти в Clymly', url: `${site()}/login`,
     outro: `Если вы не меняли пароль, сразу восстановите доступ: ${site()}/forgot-password — и напишите нам на ${COMPANY.email}.`,
   });
@@ -53,6 +53,38 @@ export function passwordChangedMail(u: { name: string; email: string }, how: 're
 
 export const sendPasswordChanged = (u: { name: string; email: string }, how: 'reset' | 'settings') =>
   deliver('password-changed', u.email, 'Пароль в Clymly изменён', passwordChangedMail(u, how));
+
+/* ───────── Коды подтверждения (смена пароля, удаление аккаунта) ───────── */
+export type CodePurpose = 'password' | 'delete';
+export const CODE_TTL_MIN = 15;
+
+export function codeMail(u: { name: string; email: string }, code: string, purpose: CodePurpose) {
+  const pw = purpose === 'password';
+  return layout({
+    title: pw ? 'Код для смены пароля' : 'Код для удаления аккаунта',
+    intro: pw
+      ? `${first(u.name)}, вы меняете пароль от аккаунта ${u.email} в Clymly. Введите этот код в настройках, чтобы подтвердить, что это вы:`
+      : `${first(u.name)}, вы запросили удаление аккаунта ${u.email} в Clymly. Введите этот код в настройках, чтобы подтвердить удаление. Удаление необратимо: резюме, вакансии, письма и история тренировок будут стёрты.`,
+    code,
+    outro: `Код действует ${CODE_TTL_MIN} минут и срабатывает один раз. Никому его не сообщайте — сотрудники Clymly никогда не спрашивают коды. Если вы ничего не запрашивали, просто проигнорируйте письмо и смените пароль: ${site()}/forgot-password. ${SUPPORT}`,
+  });
+}
+
+export const sendCode = (u: { name: string; email: string }, code: string, purpose: CodePurpose) =>
+  deliver(`code-${purpose}`, u.email, purpose === 'password' ? 'Код для смены пароля в Clymly' : 'Код для удаления аккаунта Clymly', codeMail(u, code, purpose));
+
+/* ───────── Аккаунт удалён ───────── */
+export function accountDeletedMail(u: { name: string; email: string }, hadPro: boolean) {
+  return layout({
+    title: 'Аккаунт удалён',
+    intro: `${first(u.name)}, аккаунт ${u.email} в Clymly удалён ${date(new Date())} по вашему запросу. Мы стёрли профиль, резюме, вакансии, адаптации, сопроводительные письма и историю тренировок, отвязали сохранённые карты и завершили все сеансы входа.${hadPro ? '\n\nАвтопродление Pro отключено — списаний больше не будет. Оставшийся оплаченный срок Pro аннулирован вместе с аккаунтом; по вопросам возврата напишите нам.' : ''}\n\nСведения об оплатах хранятся в обезличенном виде столько, сколько требует закон о бухгалтерском учёте. Спасибо, что были с нами — будем рады видеть вас снова.`,
+    button: 'Создать новый аккаунт', url: `${site()}/register`,
+    outro: `Если вы не удаляли аккаунт, срочно напишите нам на ${COMPANY.email}.`,
+  });
+}
+
+export const sendAccountDeleted = (u: { name: string; email: string }, hadPro: boolean) =>
+  deliver('account-deleted', u.email, 'Аккаунт Clymly удалён', accountDeletedMail(u, hadPro));
 
 /* ───────── Приветствие (после подтверждения e-mail) ───────── */
 export function welcomeMail(u: { name: string }) {
