@@ -8,6 +8,7 @@ import { COMPANY } from '@/lib/legal';
 import { PageHeader, buttonClass } from '@/components/ui';
 import Icon from '@/components/Icon';
 import AutoRefresh from '@/components/AutoRefresh';
+import { demoState, isCardDemo } from '@/lib/billing/card-demo';
 
 export const metadata: Metadata = { title: 'Результат оплаты', robots: { index: false, follow: false } };
 
@@ -17,9 +18,27 @@ const fmtDate = (d: Date) => d.toLocaleDateString('ru-RU', { day: 'numeric', mon
  * Возврат с платёжной страницы. Итог определяется только данными заказа на сервере
  * (подтверждение провайдера), а не адресом возврата или параметрами в нём.
  */
-export default async function BillingResult({ searchParams }: { searchParams: Promise<{ order?: string }> }) {
+export default async function BillingResult({ searchParams }: { searchParams: Promise<{ order?: string; demo?: string }> }) {
   const user = await requirePageUser();
-  const { order } = await searchParams;
+  const { order, demo } = await searchParams;
+  // ВРЕМЕННО: результат демо-привязки карты (скриншоты ЮKassa)
+  if (demo === 'card' && isCardDemo(user.email)) {
+    const last = demoState(user.id).cards.find((c) => c.isPrimary);
+    return (
+      <>
+        <PageHeader back={{ href: '/billing', label: 'Тариф и оплата' }} title="Привязка карты" />
+        <section className="max-w-[560px] rounded-2xl border border-line bg-white p-6 shadow-card sm:p-8" data-testid="pay-result" data-state="paid">
+          <div className="flex items-center gap-2.5 text-ok"><Icon name="check-circle" size={22} /><h2 className="text-[19px] font-semibold tracking-tight text-ink">Карта привязана</h2></div>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">Карта {last?.title ?? ''} сохранена и стала основной для автопродления Pro, прежние карты остались запасными. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.</p>
+          <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
+            <dt className="text-muted">Карта</dt><dd>{last?.title}</dd>
+            <dt className="text-muted">Сумма</dt><dd className="tabular">1 ₽ (проверочный, отменяется)</dd>
+          </dl>
+          <div className="mt-6 flex flex-wrap gap-2"><Link href="/billing#cards" className={buttonClass({ variant: 'primary' })}>К картам</Link></div>
+        </section>
+      </>
+    );
+  }
   const id = order && /^[a-z0-9]{20,40}$/.test(order) ? order : null;
   if (id) await syncPayment(id); // ЮKassa: сверка статуса по API, если уведомление ещё не пришло
   const p = id ? await db.payment.findFirst({ where: { id, userId: user.id } }) : null;
