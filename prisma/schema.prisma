@@ -96,6 +96,15 @@ model User {
   // Служебные письма о тарифе: для какого срока окончания Pro уже отправлено напоминание / уведомление об окончании
   proReminderFor  DateTime?
   proEndedFor     DateTime?
+  // Автопродление Pro (ЮKassa). autopayPlan = NULL — выключено. autopayNotice — срок окончания Pro, о списании перед
+  // которым уже отправлено напоминание; autopayNoticeAt — когда; autopayAmount — сумма из напоминания (копейки).
+  autopayPlan     String?
+  autopaySince    DateTime?
+  autopayFails    Int         @default(0) // неудачных попыток с основной карты в текущем цикле
+  autopayNotice   DateTime?
+  autopayNoticeAt DateTime?
+  autopayAmount   Int?
+  autopayLastTry  DateTime?
   createdAt       DateTime    @default(now())
 
   sessions        Session[]
@@ -103,6 +112,7 @@ model User {
   vacancies       Vacancy[]
   attempts        PracticeAttempt[]
   payments        Payment[]
+  cards           UserCard[]
   partnerLinks    PartnerLink[]
   emailTokens     EmailToken[]
   partnerConsents PartnerConsent[]
@@ -222,7 +232,15 @@ model Payment {
   months            Int? // срок на момент покупки, календарных месяцев
   amount            Int // фактическая сумма заказа, копейки (цена на момент покупки)
   currency          String         @default("RUB")
-  status            String // статус платежа: pending | succeeded | canceled
+  status            String // статус платежа: pending | succeeded | canceled | refunded | card_saved
+  kind              String         @default("pro") // pro — оплата Pro; card — проверочный платёж 1 ₽ для привязки карты
+  recurring         Boolean        @default(false) // автосписание с сохранённой карты
+  cardId            String? // карта, с которой шло автосписание / которая привязана
+  method            String? // id способа оплаты в ЮKassa (payment_method.id), если карта сохранена
+  failReason        String? // cancellation_details.reason от ЮKassa
+  returnKeyHash     String? // sha256 одноразового ключа возврата в другой браузер (24 ч)
+  returnKeyUntil    DateTime?
+  refundedAt        DateTime?
   issue             String? // требует ручной проверки: amount_mismatch | currency_mismatch | duplicate_payment | paid_after_cancel | unaccepted | verify_failed
   confirmationUrl   String?
   paidAt            DateTime? // когда провайдер подтвердил оплату (дата обработки подтверждения)
@@ -234,6 +252,21 @@ model Payment {
 
   @@index([userId, createdAt])
   @@index([createdAt, status])
+}
+
+/// Сохранённые карты для автопродления. Реквизиты карт хранит ЮKassa; у нас — только id способа оплаты и подпись.
+model UserCard {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method      String // payment_method.id в ЮKassa
+  title       String // «MasterCard •• 4444»
+  isPrimary   Boolean   @default(false)
+  failedCycle DateTime? // срок окончания Pro, в цикле которого списание с этой карты не прошло
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, method])
+  @@index([userId])
 }
 
 /// История статусов заказа: создание, переходы, отклонённые и повторные уведомления. Без секретов и данных карт.

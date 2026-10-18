@@ -15,7 +15,7 @@ export const COMPANY = {
   domain: BRAND.domain,
 };
 
-export const LEGAL_EDITION = '10 октября 2026 г.';
+export const LEGAL_EDITION = '18 октября 2026 г.';
 
 export const LEGAL_DOCS = [
   { href: '/terms', short: 'Пользовательское соглашение', title: 'Пользовательское соглашение (публичная оферта)' },

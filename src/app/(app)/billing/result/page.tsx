@@ -26,7 +26,14 @@ export default async function BillingResult({ searchParams }: { searchParams: Pr
   const state = p ? orderState(p) : 'unknown';
   const name = p ? p.planName ?? getPlan(p.planId)?.name ?? p.planId : '';
 
-  const view = {
+  const card = p?.kind === 'card';
+  const view = card ? {
+    paid: { icon: 'check-circle', tone: 'text-ok', title: 'Карта привязана', text: 'Карта сохранена для автопродления Pro. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.' },
+    awaiting: { icon: 'clock', tone: 'text-warn', title: 'Проверяем карту', text: 'Платёжный сервис ещё не подтвердил привязку. Обычно это занимает до минуты — страница обновится сама.' },
+    not_paid: { icon: 'alert', tone: 'text-ink-2', title: 'Карта не привязана', text: 'Привязка не завершена или карта не сохранена. Проверочный 1 ₽ не списан. Можно попробовать ещё раз.' },
+    review: { icon: 'alert', tone: 'text-bad', title: 'Не удалось проверить привязку', text: `Напишите на ${COMPANY.email} и укажите номер заказа.` },
+    unknown: { icon: 'alert', tone: 'text-bad', title: 'Не удалось проверить', text: 'Заказ не найден.' },
+  }[state] as { icon: 'check-circle' | 'clock' | 'alert'; tone: string; title: string; text: string } : {
     paid: { icon: 'check-circle', tone: 'text-ok', title: 'Оплата подтверждена', text: p?.accessUntil ? `${name} оплачен. Pro действует до ${fmtDate(p.accessUntil)}.` : `${name} оплачен.` },
     awaiting: { icon: 'clock', tone: 'text-warn', title: 'Ждём подтверждения оплаты', text: 'Платёжный сервис ещё не подтвердил оплату. Обычно это занимает до минуты — страница обновится сама. Если вы не завершили оплату, деньги не списаны.' },
     not_paid: { icon: 'alert', tone: 'text-ink-2', title: 'Оплата не завершена', text: 'Платёж не прошёл или был отменён — деньги не списаны. Можно попробовать ещё раз.' },
@@ -36,21 +43,21 @@ export default async function BillingResult({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader back={{ href: '/billing', label: 'Тариф и оплата' }} title="Результат оплаты" />
+      <PageHeader back={{ href: '/billing', label: 'Тариф и оплата' }} title={card ? 'Привязка карты' : 'Результат оплаты'} />
       <section className="max-w-[560px] rounded-2xl border border-line bg-white p-6 shadow-card sm:p-8" data-testid="pay-result" data-state={state}>
         <div className={`flex items-center gap-2.5 ${view.tone}`}><Icon name={view.icon} size={22} /><h2 className="text-[19px] font-semibold tracking-tight text-ink">{view.title}</h2></div>
         <p className="mt-3 text-[15px] leading-relaxed text-ink-2">{view.text}</p>
         {p && (
           <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-            <dt className="text-muted">Тариф</dt><dd>{name}</dd>
-            <dt className="text-muted">Сумма</dt><dd className="tabular">{formatRub(p.amount)}</dd>
+            {!card && <><dt className="text-muted">Тариф</dt><dd>{name}</dd></>}
+            <dt className="text-muted">Сумма</dt><dd className="tabular">{formatRub(p.amount)}{card && ' (проверочный, отменяется)'}</dd>
             <dt className="text-muted">Номер заказа</dt><dd className="font-mono text-[13px]">{p.id}</dd>
           </dl>
         )}
         <div className="mt-6 flex flex-wrap gap-2">
           {state === 'awaiting' && <Link href={`/billing/result?order=${p!.id}`} className={buttonClass({ variant: 'primary' })} data-testid="pay-refresh">Обновить статус</Link>}
-          {state === 'paid' && <Link href="/dashboard" className={buttonClass({ variant: 'primary' })}>Перейти в кабинет</Link>}
-          {(state === 'not_paid' || state === 'unknown') && <Link href={p ? `/billing?plan=${p.planId}` : '/billing'} className={buttonClass({ variant: 'primary' })}>Выбрать тариф снова</Link>}
+          {state === 'paid' && (card ? <Link href="/billing#cards" className={buttonClass({ variant: 'primary' })}>К картам</Link> : <Link href="/dashboard" className={buttonClass({ variant: 'primary' })}>Перейти в кабинет</Link>)}
+          {(state === 'not_paid' || state === 'unknown') && !card && <Link href={p ? `/billing?plan=${p.planId}` : '/billing'} className={buttonClass({ variant: 'primary' })}>Выбрать тариф снова</Link>}
           <Link href="/billing" className={buttonClass({ variant: 'ghost' })}>Тариф и оплата</Link>
         </div>
         {state === 'awaiting' && <AutoRefresh everyMs={5000} maxTimes={24} />}

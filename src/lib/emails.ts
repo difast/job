@@ -67,16 +67,19 @@ export function welcomeMail(u: { name: string }) {
 export const sendWelcome = (u: { name: string; email: string }) => deliver('welcome', u.email, 'Добро пожаловать в Clymly', welcomeMail(u));
 
 /* ───────── Оплата Pro ───────── */
-export function paymentMail(u: { name: string }, p: { id: string; planId: string; planName: string | null; amount: number; provider: string; accessFrom: Date; accessUntil: Date; paidAt: Date }) {
+export function paymentMail(u: { name: string }, p: { id: string; planId: string; planName: string | null; amount: number; provider: string; accessFrom: Date; accessUntil: Date; paidAt: Date }, autopay: { date: Date; amount: number; card: string } | null = null) {
   const name = p.planName ?? getPlan(p.planId)?.name ?? p.planId;
   const test = p.provider === 'stub';
   const later = p.accessFrom.getTime() - p.paidAt.getTime() > 60_000;
   return layout({
-    title: test ? 'Тестовая оплата прошла' : 'Оплата прошла',
+    title: test ? 'Тестовая оплата прошла' : 'Pro подключён',
     intro: `${first(u.name)}, спасибо! Оплата тарифа «${name}» подтверждена.${later ? ` Новый период начнётся после окончания текущего — ${date(p.accessFrom)}.` : ''} Pro действует до ${date(p.accessUntil)}.${test ? '\n\nЭто тестовый режим: деньги не списывались.' : ''}`,
-    rows: [['Тариф', name], ['Сумма', formatRub(p.amount)], ['Период Pro', `${date(p.accessFrom)} — ${date(p.accessUntil)}`], ['Способ оплаты', PROVIDER_LABEL[p.provider] ?? p.provider], ['Номер заказа', p.id]],
+    rows: [['Тариф', name], ['Сумма', formatRub(p.amount)], ['Период Pro', `${date(p.accessFrom)} — ${date(p.accessUntil)}`], ['Способ оплаты', PROVIDER_LABEL[p.provider] ?? p.provider], ['Номер заказа', p.id],
+      ['Автопродление', autopay ? `включено: около ${date(autopay.date)} спишем ${formatRub(autopay.amount)} с карты ${autopay.card}` : 'не включено']],
     button: 'Тариф и оплата', url: `${site()}/billing`,
-    outro: `Это разовый платёж, без автопродления: по окончании срока деньги не спишутся автоматически. Кассовый чек присылает платёжный сервис, если он предусмотрен. ${SUPPORT}`,
+    outro: autopay
+      ? `Перед каждым списанием пришлём напоминание за 3 дня. Отключить автопродление можно в любой момент: удалите карту в разделе «Тариф и оплата». Кассовый чек присылает платёжный сервис. ${SUPPORT}`
+      : `По окончании срока деньги не спишутся автоматически. Кассовый чек присылает платёжный сервис, если он предусмотрен. ${SUPPORT}`,
   });
 }
 
@@ -85,7 +88,112 @@ export async function sendPaymentSucceeded(paymentId: string) {
   const p = await db.payment.findUnique({ where: { id: paymentId }, include: { user: { select: { name: true, email: true } } } });
   if (!p || p.status !== 'succeeded' || !p.accessFrom || !p.accessUntil) return false;
   const name = p.planName ?? getPlan(p.planId)?.name ?? 'Pro';
-  return deliver('payment', p.user.email, `Оплата «${name}» прошла — Clymly`, paymentMail(p.user, { ...p, accessFrom: p.accessFrom, accessUntil: p.accessUntil, paidAt: p.paidAt ?? p.updatedAt }));
+  const ap = await autopayInfo(p.userId);
+  return deliver('payment', p.user.email, `Оплата «${name}» прошла — Clymly`, paymentMail(p.user, { ...p, accessFrom: p.accessFrom, accessUntil: p.accessUntil, paidAt: p.paidAt ?? p.updatedAt }, ap));
+}
+
+/* ───────── Автопродление и карты ───────── */
+const IF_NOT_YOU = 'Если это были не вы — ответьте на это письмо.';
+
+/** Дата и сумма следующего списания и основная карта; null — автопродление выключено. */
+async function autopayInfo(userId: string) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { planUntil: true, autopayPlan: true, autopayAmount: true, cards: { where: { isPrimary: true }, select: { title: true } } } });
+  if (!u?.autopayPlan || !u.planUntil || !u.cards[0]) return null;
+  const plan = getPlan(u.autopayPlan);
+  return { date: new Date(u.planUntil.getTime() - 86_400_000), amount: u.autopayAmount ?? plan?.price ?? 0, card: u.cards[0].title, planName: plan?.name ?? 'Pro' };
+}
+
+const userOf = (id: string) => db.user.findUnique({ where: { id }, select: { name: true, email: true, planUntil: true } });
+
+export async function sendProRenewed(paymentId: string) {
+  const p = await db.payment.findUnique({ where: { id: paymentId }, include: { user: { select: { name: true, email: true } } } });
+  if (!p || !p.accessUntil) return false;
+  const card = p.cardId ? await db.userCard.findUnique({ where: { id: p.cardId }, select: { title: true } }) : null;
+  return deliver('autopay-renewed', p.user.email, 'Pro продлён — Clymly', layout({
+    title: 'Pro продлён',
+    intro: `${first(p.user.name)}, автопродление сработало: Clymly Pro продлён до ${date(p.accessUntil)}.`,
+    rows: [['Тариф', p.planName ?? 'Pro'], ['Списано', formatRub(p.amount)], ...(card ? [['Карта', card.title] as [string, string]] : []), ['Pro действует до', date(p.accessUntil)], ['Номер заказа', p.id]],
+    button: 'Тариф и оплата', url: `${site()}/billing`,
+    outro: `Кассовый чек присылает платёжный сервис. Отключить автопродление — удалите карту в разделе «Тариф и оплата». ${SUPPORT}`,
+  }));
+}
+
+/** Напоминание за 3+ дня до списания. false — письмо не ушло (списания без него не будет). */
+export async function sendAutopayReminder(userId: string) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { name: true, email: true, planUntil: true, autopayPlan: true, autopayAmount: true, autopayNoticeAt: true, cards: { orderBy: { createdAt: 'asc' } } } });
+  if (!u?.planUntil || !u.autopayPlan || !u.autopayAmount || !u.autopayNoticeAt) return false;
+  const { chargeDate } = await import('./billing/autopay');
+  const when = chargeDate(u.planUntil, u.autopayNoticeAt);
+  const primary = u.cards.find((c) => c.isPrimary) ?? u.cards[0];
+  const plan = getPlan(u.autopayPlan);
+  return deliver('autopay-reminder', u.email, `Скоро продлим Pro: ${date(when)} — Clymly`, layout({
+    title: 'Скоро продлим Pro',
+    intro: `${first(u.name)}, ${date(when)} мы продлим Clymly Pro и спишем ${formatRub(u.autopayAmount)} с карты ${primary?.title ?? ''}.${u.cards.length > 1 ? ' Если списание не пройдёт, попробуем ещё раз, а затем другие привязанные карты.' : ' Если списание не пройдёт, попробуем ещё раз.'}
+
+Не хотите продлевать — удалите карты в разделе «Тариф и оплата» до этой даты: оплаченный срок до ${date(u.planUntil)} сохранится.`,
+    rows: [['Тариф', plan?.name ?? 'Pro'], ['Дата списания', date(when)], ['Сумма', formatRub(u.autopayAmount)], ['Карта', primary?.title ?? '—']],
+    button: 'Управлять автопродлением', url: `${site()}/billing#cards`,
+    outro: `Это обязательное уведомление об автопродлении. ${SUPPORT}`,
+  }));
+}
+
+export async function sendAutopayFailed(userId: string, next: 'retry' | 'other') {
+  const u = await userOf(userId);
+  if (!u) return false;
+  return deliver('autopay-failed', u.email, 'Не удалось продлить Pro — Clymly', layout({
+    title: 'Не удалось продлить Pro',
+    intro: `${first(u.name)}, списание за продление Clymly Pro не прошло. ${next === 'retry' ? 'Попробуем ещё раз примерно через 8 часов.' : 'Попробуем списать с другой привязанной карты.'}${u.planUntil ? ` Pro действует до ${date(u.planUntil)}.` : ''}`,
+    button: 'Проверить карты', url: `${site()}/billing#cards`,
+    outro: `Проверьте баланс и ограничения карты или привяжите другую. ${IF_NOT_YOU} ${SUPPORT}`,
+  }));
+}
+
+export async function sendAutopayDisabled(userId: string) {
+  const u = await userOf(userId);
+  if (!u) return false;
+  return deliver('autopay-disabled', u.email, 'Автопродление Pro отключено — Clymly', layout({
+    title: 'Автопродление Pro отключено',
+    intro: `${first(u.name)}, продлить Clymly Pro не удалось ни с одной привязанной карты, поэтому автопродление отключено, а данные карт удалены.${u.planUntil && u.planUntil > new Date() ? ` Pro действует до ${date(u.planUntil)}.` : ''}
+
+Продлить Pro можно вручную в разделе «Тариф и оплата».`,
+    button: 'Продлить Pro', url: `${site()}/billing`,
+    outro: `${IF_NOT_YOU} ${SUPPORT}`,
+  }));
+}
+
+export async function sendCardBound(userId: string, title: string) {
+  const u = await userOf(userId);
+  if (!u) return false;
+  return deliver('card-bound', u.email, 'Карта привязана — Clymly', layout({
+    title: 'Карта привязана',
+    intro: `${first(u.name)}, карта ${title} привязана для автопродления Clymly Pro. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.`,
+    button: 'Тариф и оплата', url: `${site()}/billing#cards`,
+    outro: `Удалить карту можно в любой момент в разделе «Тариф и оплата». ${IF_NOT_YOU} ${SUPPORT}`,
+  }));
+}
+
+export async function sendCardRemoved(userId: string, title: string) {
+  const u = await userOf(userId);
+  if (!u) return false;
+  return deliver('card-removed', u.email, 'Карта удалена — Clymly', layout({
+    title: 'Карта удалена',
+    intro: `${first(u.name)}, карта ${title} удалена. Автопродление продолжит работать с остальными привязанными картами.`,
+    button: 'Тариф и оплата', url: `${site()}/billing#cards`,
+    outro: `${IF_NOT_YOU} ${SUPPORT}`,
+  }));
+}
+
+export async function sendCardUnlinked(userId: string, title: string) {
+  const u = await userOf(userId);
+  if (!u) return false;
+  return deliver('card-unlinked', u.email, 'Карта отвязана, автопродление отключено — Clymly', layout({
+    title: 'Карта отвязана',
+    intro: `${first(u.name)}, карта ${title} удалена, других карт нет — автопродление Clymly Pro отключено.${u.planUntil && u.planUntil > new Date() ? ` Pro действует до ${date(u.planUntil)}.` : ''}
+
+Включить автопродление снова: оплатите Pro с отметкой «Запомнить данные карты» или привяжите карту в разделе «Тариф и оплата».`,
+    button: 'Тариф и оплата', url: `${site()}/billing#cards`,
+    outro: `${IF_NOT_YOU} ${SUPPORT}`,
+  }));
 }
 
 /* ───────── Окончание Pro ───────── */
@@ -94,7 +202,7 @@ export const REMIND_DAYS = 3;
 export function proEndingMail(u: { name: string }, until: Date) {
   return layout({
     title: 'Pro скоро закончится',
-    intro: `${first(u.name)}, оплаченный период Clymly Pro закончится ${date(until)}. Автопродления нет — деньги не спишутся без вашего действия.\n\nЧтобы продолжить без перерыва, продлите Pro: ${offers()}. Новый срок добавится к текущему.`,
+    intro: `${first(u.name)}, оплаченный период Clymly Pro закончится ${date(until)}. Автопродление не включено — деньги не спишутся без вашего действия.\n\nЧтобы продолжить без перерыва, продлите Pro: ${offers()}. Новый срок добавится к текущему.`,
     button: 'Продлить Pro', url: `${site()}/billing`,
     outro: `Это служебное письмо о вашем тарифе. ${SUPPORT}`,
   });
@@ -116,9 +224,12 @@ export function proEndedMail(u: { name: string }, until: Date) {
  */
 export async function runProNotices(now = new Date()) {
   if (!mailEnabled()) return { ending: 0, ended: 0 };
+  const { isDaytime } = await import('./billing/autopay');
+  if (!isDaytime(now)) return { ending: 0, ended: 0 }; // напоминания — только днём по Москве
   let ending = 0, ended = 0;
   const soon = new Date(now.getTime() + REMIND_DAYS * 86_400_000);
-  const endingUsers = await db.user.findMany({ where: { plan: 'pro', planUntil: { gt: now, lte: soon } }, select: { id: true, name: true, email: true, planUntil: true, proReminderFor: true }, take: 200 });
+  // «Pro скоро закончится» — только без автопродления (с ним приходит напоминание о списании)
+  const endingUsers = await db.user.findMany({ where: { plan: 'pro', autopayPlan: null, planUntil: { gt: now, lte: soon } }, select: { id: true, name: true, email: true, planUntil: true, proReminderFor: true }, take: 200 });
   for (const u of endingUsers) {
     if (!u.planUntil || +(u.proReminderFor ?? 0) === +u.planUntil) continue;
     const claim = await db.user.updateMany({ where: { id: u.id, planUntil: u.planUntil, OR: [{ proReminderFor: null }, { proReminderFor: { not: u.planUntil } }] }, data: { proReminderFor: u.planUntil } });

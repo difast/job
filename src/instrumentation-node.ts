@@ -24,3 +24,19 @@ export function startMailJobs() {
   g.__mailTimer = setInterval(run, every);
   g.__mailTimer.unref?.();
 }
+
+/** Автопродление ЮKassa: сверка, напоминания и списания раз в 10 минут (AUTOPAY_INTERVAL_MS — только для тестов). */
+export function startBillingJobs() {
+  const g = globalThis as unknown as { __billingTimer?: NodeJS.Timeout };
+  if (g.__billingTimer || process.env.PAYMENT_PROVIDER !== 'yookassa') return;
+  const every = Math.max(1000, Number(process.env.AUTOPAY_INTERVAL_MS) || 10 * 60_000);
+  let running = false;
+  const run = () => {
+    if (running) return; // следующий запуск — только после завершения предыдущего
+    running = true;
+    void import('./lib/billing/autopay').then((m) => m.runAutopay()).catch((e) => console.warn('[billing] autopay failed:', (e as Error).message)).finally(() => { running = false; });
+  };
+  setTimeout(run, Math.min(every, 60_000)).unref?.();
+  g.__billingTimer = setInterval(run, every);
+  g.__billingTimer.unref?.();
+}

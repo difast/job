@@ -38,6 +38,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Ожидает оплаты', cls: 'bg-warn-soft text-warn' },
   canceled: { label: 'Отменён', cls: 'bg-subtle text-ink-2' },
   review: { label: 'Требует проверки', cls: 'bg-bad-soft text-bad' },
+  refunded: { label: 'Возврат', cls: 'bg-subtle text-ink-2' },
+  card_saved: { label: 'Карта привязана', cls: 'bg-ok-soft text-ok' },
 };
 
 export function PaymentStatusBadge({ status, issue }: { status: string; issue?: string | null }) {

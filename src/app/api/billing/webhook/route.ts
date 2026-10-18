@@ -1,28 +1,31 @@
-import { db } from '@/lib/db';
-import { applyStatus } from '@/lib/billing/service';
-import { getProvider } from '@/lib/billing/provider';
+import { processYkPayment, processYkRefund } from '@/lib/billing/autopay';
+import { YkError, getYkPayment, getYkRefund, ykConfig, ykIpAllowed, ykReady } from '@/lib/billing/yookassa';
 
 /**
- * Уведомления ЮKassa (payment.succeeded / payment.canceled).
- * Телу уведомления не доверяем: статус всегда перепроверяется запросом к API ЮKassa.
- * URL для настройки в личном кабинете ЮKassa: https://<ваш-домен>/api/billing/webhook
+ * Уведомления ЮKassa: payment.succeeded, payment.waiting_for_capture, payment.canceled, refund.succeeded.
+ * Из тела берём только id объекта — состояние всегда запрашиваем у API ЮKassa и сверяем заказ, сумму и валюту.
+ * Адрес для кабинета ЮKassa: https://<домен>/api/billing/yookassa (или прежний /api/billing/webhook).
+ * Ответ 200 — всегда, кроме временной ошибки: тогда 500, и ЮKassa повторит уведомление.
  */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as { event?: string; object?: { id?: string } } | null;
-  const providerId = body?.object?.id;
-  if (!providerId || typeof providerId !== 'string') return Response.json({ ok: false }, { status: 400 });
-
-  const provider = getProvider();
-  if (provider.name !== 'yookassa') return Response.json({ ok: true, ignored: 'test-mode' });
-
-  const payment = await db.payment.findUnique({ where: { providerPaymentId: providerId } });
-  if (!payment || payment.provider !== 'yookassa') return Response.json({ ok: true, ignored: 'unknown-payment' }); // 200, чтобы ЮKassa не повторяла
+  const id = body?.object?.id;
+  if (!id || typeof id !== 'string') return Response.json({ ok: false }, { status: 400 });
+  if (!ykReady()) return Response.json({ ok: true, ignored: 'test-mode' });
+  if (!/^[\w-]{10,64}$/.test(id)) return Response.json({ ok: false }, { status: 400 });
+  const cfg = ykConfig();
+  if (cfg.ok && cfg.config.ipCheck) {
+    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0] || req.headers.get('x-real-ip') || '';
+    if (!ykIpAllowed(ip)) { console.warn('[billing] уведомление ЮKassa с чужого адреса отклонено'); return Response.json({ ok: false }, { status: 403 }); }
+  }
   try {
-    const status = await provider.getStatus(providerId);
-    if (status) await applyStatus(payment.id, status, 'notification', `ЮKassa ${body?.event ?? ''}`.trim());
+    if (body?.event?.startsWith('refund.')) await processYkRefund(await getYkRefund(id), 'notification');
+    else await processYkPayment(await getYkPayment(id), 'notification');
   } catch (e) {
-    console.error('[billing] webhook verify failed', e);
-    return Response.json({ ok: false }, { status: 500 }); // ЮKassa повторит уведомление
+    // ЮKassa не знает такой объект — это не наш платёж, повторять уведомление незачем
+    if (e instanceof YkError && e.status === 404) return Response.json({ ok: true, ignored: 'unknown' });
+    console.error(`[billing] уведомление ЮKassa ${body?.event ?? ''}: ${(e as Error).message}`);
+    return Response.json({ ok: false }, { status: 500 });
   }
   return Response.json({ ok: true });
 }

@@ -1,9 +1,11 @@
 // Заказы и оплата Pro — общая логика для всех провайдеров (заглушка, ЮKassa, ЮMoney).
 // Статусы разделены: статус платежа (Payment.status), состояние заказа (orderState) и доступ Pro (accessState).
+import { createHash, randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { db } from '../db';
 import { ApiError } from '../http';
-import { extendUntil, getPlan } from './plans';
+import { extendUntil, getPlan, planRank } from './plans';
+import { allow } from '../partners/ratelimit';
 import { providerByName, providerForMethod, type PaymentMethod, type PaymentStatus } from './provider';
 import { BRAND } from '../brand';
 
@@ -16,12 +18,27 @@ export async function logEvent(paymentId: string, status: string, source: string
   await tx.paymentEvent.create({ data: { paymentId, status, source, note: note?.slice(0, 300) } });
 }
 
+/** Одноразовый ключ возврата с платёжной страницы в другой браузер: в ссылке — ключ, в базе — его sha256 (24 часа). */
+export const hashReturnKey = (k: string) => createHash('sha256').update(k).digest('hex');
+export function newReturnKey() {
+  const key = randomBytes(24).toString('base64url');
+  return { key, hash: hashReturnKey(key), until: new Date(Date.now() + 24 * 3_600_000) };
+}
+export const returnUrl = (origin: string, orderId: string, key: string) => `${origin}/payment/return?order=${orderId}&r=${key}`;
+
 /** Создаёт заказ у провайдера и возвращает ссылку, куда отправить пользователя. Цена и срок — только с сервера. */
 export async function createCheckout(user: { id: string; email: string }, planId: string, origin: string, method: PaymentMethod = 'card') {
   const plan = getPlan(planId);
   if (!plan || plan.price <= 0 || plan.months <= 0) throw new ApiError(400, 'Тариф недоступен для оплаты');
+  if (!allow(`checkout:${user.id}`, 6, 60_000)) throw new ApiError(429, 'Слишком много попыток оплаты. Подождите минуту.');
+  // При включённом автопродлении и действующем Pro можно перейти только на тариф с большим сроком
+  const u = await db.user.findUnique({ where: { id: user.id }, select: { plan: true, planUntil: true, autopayPlan: true } });
+  if (u?.autopayPlan && u.plan === 'pro' && u.planUntil && u.planUntil > new Date() && planRank(plan.id) <= planRank(u.autopayPlan)) {
+    throw new ApiError(409, 'У вас включено автопродление — Pro продлится автоматически. Сейчас можно перейти только на тариф с большим сроком.');
+  }
   const provider = providerForMethod(method);
 
+  const rk = newReturnKey();
   // Блокировка по пользователю: параллельные нажатия не создают два заказа
   const { payment, reused } = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'checkout:' + user.id}))`;
@@ -30,7 +47,7 @@ export async function createCheckout(user: { id: string; email: string }, planId
       orderBy: { createdAt: 'desc' },
     });
     if (open) return { payment: open, reused: true };
-    const created = await tx.payment.create({ data: { userId: user.id, provider: provider.name, planId: plan.id, planName: plan.name, months: plan.months, amount: plan.price, currency: 'RUB', status: 'pending' } });
+    const created = await tx.payment.create({ data: { userId: user.id, provider: provider.name, planId: plan.id, planName: plan.name, months: plan.months, amount: plan.price, currency: 'RUB', status: 'pending', returnKeyHash: rk.hash, returnKeyUntil: rk.until } });
     await logEvent(created.id, 'pending', 'checkout', `${plan.id}, ${plan.price / 100} RUB`, tx);
     return { payment: created, reused: false };
   });
@@ -48,7 +65,7 @@ export async function createCheckout(user: { id: string; email: string }, planId
   try {
     const res = await provider.createPayment({
       paymentId: payment.id, amount: plan.price, description: `${BRAND.name} ${plan.name}`,
-      returnUrl: `${origin}/billing/result?order=${payment.id}`, customerEmail: user.email,
+      returnUrl: returnUrl(origin, payment.id, rk.key), customerEmail: user.email, userId: user.id,
     });
     await db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: res.providerPaymentId, confirmationUrl: res.confirmationUrl } });
     if (res.status !== 'pending') await applyStatus(payment.id, res.status, 'provider');
@@ -66,14 +83,14 @@ export async function createCheckout(user: { id: string; email: string }, planId
  * уведомление ничего не меняет, а Pro продлевается ровно один раз. Срок берётся из снимка заказа (months),
  * продление — от конца текущего периода Pro, если он не истёк.
  */
-export async function applyStatus(paymentId: string, status: PaymentStatus, source = 'provider', note?: string): Promise<boolean> {
+export async function applyStatus(paymentId: string, status: PaymentStatus, source = 'provider', note?: string, opts: { silent?: boolean; failReason?: string } = {}): Promise<boolean> {
   if (status === 'pending') return false;
   const activated = await db.$transaction(async (tx) => {
     const p = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!p) return false;
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${p.userId} FOR UPDATE`; // одна активация за раз на пользователя
     const now = new Date();
-    const moved = await tx.payment.updateMany({ where: { id: paymentId, status: 'pending' }, data: { status, ...(status === 'succeeded' ? { paidAt: now } : {}) } });
+    const moved = await tx.payment.updateMany({ where: { id: paymentId, status: 'pending' }, data: { status, ...(status === 'succeeded' ? { paidAt: now } : {}), ...(opts.failReason ? { failReason: opts.failReason.slice(0, 60) } : {}) } });
     if (!moved.count) { await logEvent(paymentId, 'duplicate', source, `повторно: ${status}; текущий статус ${p.status}`, tx); return false; }
     await logEvent(paymentId, status, source, note, tx);
     if (status !== 'succeeded') return true;
@@ -88,7 +105,7 @@ export async function applyStatus(paymentId: string, status: PaymentStatus, sour
     return 'activated' as const;
   });
   // Письмо об оплате — ровно один раз (сюда доходит только переход pending → succeeded), не задерживая ответ
-  if (activated === 'activated') void import('../emails').then((m) => m.sendPaymentSucceeded(paymentId)).catch((e) => console.error('[mail] payment', (e as Error).message));
+  if (activated === 'activated' && !opts.silent) void import('../emails').then((m) => m.sendPaymentSucceeded(paymentId)).catch((e) => console.error('[mail] payment', (e as Error).message));
   return !!activated;
 }
 
@@ -105,8 +122,10 @@ export async function syncPayment(paymentId: string) {
   const provider = providerByName(p.provider);
   if (!provider || provider.name !== 'yookassa' || process.env.PAYMENT_PROVIDER !== 'yookassa') return;
   try {
-    const st = await provider.getStatus(p.providerPaymentId);
-    if (st) await applyStatus(p.id, st, 'sync');
+    // Полная обработка (сохранение карты, автопродление, проверка суммы) — та же, что у уведомления
+    const { processYkPayment } = await import('./autopay');
+    const { getYkPayment } = await import('./yookassa');
+    await processYkPayment(await getYkPayment(p.providerPaymentId), 'sync');
   } catch (e) { console.warn('[billing] sync failed', e instanceof Error ? e.message.slice(0, 200) : e); }
 }
 
@@ -117,7 +136,7 @@ export const ORDER_LABEL: Record<OrderState, string> = { awaiting: 'Ожидае
 
 export function orderState(p: { status: string; issue: string | null }): OrderState {
   if (p.issue) return 'review';
-  return p.status === 'succeeded' ? 'paid' : p.status === 'canceled' ? 'not_paid' : 'awaiting';
+  return p.status === 'succeeded' || p.status === 'card_saved' ? 'paid' : p.status === 'canceled' || p.status === 'refunded' ? 'not_paid' : 'awaiting';
 }
 
 export type AccessState = 'none' | 'scheduled' | 'active' | 'ended';
@@ -130,5 +149,5 @@ export function accessState(p: { accessFrom: Date | null; accessUntil: Date | nu
 
 /** Оплата, период которой действует сейчас (для названия текущего тарифа: «Pro — 3 месяца»). */
 export function currentPurchase(userId: string, now = new Date()) {
-  return db.payment.findFirst({ where: { userId, status: 'succeeded', accessFrom: { lte: now }, accessUntil: { gt: now } }, orderBy: { paidAt: 'desc' } });
+  return db.payment.findFirst({ where: { userId, kind: 'pro', status: 'succeeded', accessFrom: { lte: now }, accessUntil: { gt: now } }, orderBy: { paidAt: 'desc' } });
 }

@@ -20,7 +20,7 @@ test('тарифы: единые названия, цены, срок, экви�
   assert.equal(nbsp(n.perMonth), '≈ 397 ₽ в месяц');
   assert.equal(nbsp(n.badge), 'Экономия 307 ₽');
   assert.match(nbsp(n.savings), /307 ₽ \(≈ 20,5 %\)/);
-  assert.equal(n.oneTime, 'Разовый платёж, без автопродления');
+  assert.equal(n.oneTime, 'Автопродление — только если отметите «Запомнить данные карты»');
   assert.equal(PLANS.filter((p) => p.price > 0).length, 2);
 });
 

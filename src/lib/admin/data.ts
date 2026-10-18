@@ -38,18 +38,18 @@ export async function overview() {
     db.payment.groupBy({ by: ['currency'], where: { status: 'succeeded', createdAt: { gte: d0 } }, _sum: { amount: true }, _count: { _all: true } }),
     db.payment.groupBy({ by: ['currency'], where: { status: 'succeeded', createdAt: { gte: d7 } }, _sum: { amount: true }, _count: { _all: true } }),
     db.payment.groupBy({ by: ['currency'], where: { status: 'succeeded', createdAt: { gte: d30 } }, _sum: { amount: true }, _count: { _all: true } }),
-    db.payment.count({ where: { status: 'canceled' } }),
-    db.payment.count({ where: { status: 'pending', issue: null } }),
+    db.payment.count({ where: { kind: 'pro', status: 'canceled' } }),
+    db.payment.count({ where: { kind: 'pro', status: 'pending', issue: null } }),
     db.$queryRaw<{ c: bigint }[]>`SELECT COUNT(*) AS c FROM "User" u WHERE NOT (u.plan = 'pro' AND u."planUntil" > ${now})
       AND (u.plan = 'pro' OR EXISTS (SELECT 1 FROM "Payment" p WHERE p."userId" = u.id AND p.status = 'succeeded'))`,
-    db.payment.findMany({ orderBy: { createdAt: 'desc' }, take: 6, include: { user: { select: { email: true } } } }),
+    db.payment.findMany({ where: { kind: 'pro' }, orderBy: { createdAt: 'desc' }, take: 6, include: { user: { select: { email: true } } } }),
     db.$queryRaw<{ src: string; c: bigint }[]>`SELECT CASE WHEN u.source = 'jobtoo' THEN 'jobtoo' WHEN u."signupVisitId" IS NOT NULL THEN 'marketing' ELSE 'direct' END AS src, COUNT(*) AS c FROM "User" u GROUP BY 1`,
   ]);
   const money = (g: typeof paidAgg): MoneyByCurrency => g.map((x) => ({ currency: x.currency, amount: x._sum.amount ?? 0, count: x._count._all }));
   return {
     users: { total, today, week, month, active: n(active[0]?.c), pro, free: total - pro },
     payments: { all: money(paidAgg), today: money(paidToday), d7: money(paid7), d30: money(paid30), failed, pending },
-    subscriptions: { active: pro, expired: n(expired[0]?.c) },
+    subscriptions: { active: pro, expired: n(expired[0]?.c), autopay: await db.user.count({ where: { plan: 'pro', planUntil: { gt: now }, autopayPlan: { not: null } } }) },
     recent,
     signupSources: Object.fromEntries(sources.map((s) => [s.src, n(s.c)])) as Record<'jobtoo' | 'marketing' | 'direct', number>,
   };
@@ -109,7 +109,7 @@ export interface UserFilters { q?: string; plan?: 'free' | 'pro' | 'pro-month' |
 export const PAGE_SIZE = 25;
 
 export interface UserRow {
-  id: string; email: string; createdAt: Date; pdConsentAt: Date | null; plan: string; planUntil: Date | null; source: string | null;
+  id: string; email: string; createdAt: Date; pdConsentAt: Date | null; plan: string; planUntil: Date | null; source: string | null; autopayPlan: string | null;
   paid_count: number; total: number; last_paid_at: Date | null; last_amount: number | null; last_currency: string | null;
   last_at: Date | null; first_link: string | null; first_utm: string | null; signup_link: string | null; signup_utm: string | null;
 }
@@ -141,7 +141,7 @@ export async function listUsers(f: UserFilters) {
     WHERE ${Prisma.join(where, ' AND ')}`;
   const order = Prisma.sql`ORDER BY ${USER_SORTS[f.sort]} ${f.dir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`} NULLS LAST, u.id`;
   const [rows, count] = await Promise.all([
-    db.$queryRaw<UserRow[]>`SELECT u.id, u.email, u."createdAt", u."pdConsentAt", u.plan, u."planUntil", u.source,
+    db.$queryRaw<UserRow[]>`SELECT u.id, u.email, u."createdAt", u."pdConsentAt", u.plan, u."planUntil", u.source, u."autopayPlan",
         COALESCE(pay.cnt, 0)::int AS paid_count, COALESCE(pay.total, 0)::int AS total, pay.last_paid_at,
         (SELECT amount FROM "Payment" lp WHERE lp."userId" = u.id AND lp.status = 'succeeded' ORDER BY COALESCE(lp."paidAt", lp."updatedAt") DESC LIMIT 1) AS last_amount,
         (SELECT currency FROM "Payment" lp WHERE lp."userId" = u.id AND lp.status = 'succeeded' ORDER BY COALESCE(lp."paidAt", lp."updatedAt") DESC LIMIT 1) AS last_currency,
@@ -156,7 +156,7 @@ export async function listUsers(f: UserFilters) {
 }
 
 /* ───────── Платежи ───────── */
-export interface PaymentFilters { period: PeriodKey; status?: 'succeeded' | 'pending' | 'canceled' | 'review'; plan?: string; provider?: string; source?: string; page: number }
+export interface PaymentFilters { period: PeriodKey; status?: 'succeeded' | 'pending' | 'canceled' | 'refunded' | 'review'; plan?: string; provider?: string; source?: string; page: number }
 
 export async function listPayments(f: PaymentFilters) {
   const from = periodStart(f.period);
@@ -164,6 +164,7 @@ export async function listPayments(f: PaymentFilters) {
     ? { user: { firstVisitId: null } }
     : f.source ? { user: { firstVisitId: { in: (await db.visit.findMany({ where: { link: { slug: f.source } }, select: { id: true } })).map((v) => v.id) } } } : {};
   const where: Prisma.PaymentWhereInput = {
+    kind: 'pro', // проверочные платежи 1 ₽ за привязку карты — не оплаты
     createdAt: { gte: from },
     ...(f.status === 'review' ? { issue: { not: null } } : f.status ? { status: f.status } : {}),
     ...(f.plan && PLANS.some((p) => p.id === f.plan) ? { planId: f.plan } : {}),

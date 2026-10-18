@@ -1,8 +1,16 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { startPartnerJobs, startMailJobs } = await import('./instrumentation-node');
+    const { startPartnerJobs, startMailJobs, startBillingJobs } = await import('./instrumentation-node');
     startPartnerJobs();
     startMailJobs();
+    startBillingJobs();
+    // Оплата ЮKassa: без ключей магазина оплата выключена — пишем, чего не хватает (без значений)
+    if (process.env.PAYMENT_PROVIDER === 'yookassa') {
+      const { ykConfig } = await import('./lib/billing/yookassa');
+      const c = ykConfig();
+      if (!c.ok) console.error(`[billing] PAYMENT_PROVIDER=yookassa, но не заданы: ${c.missing.join(', ')} — оплата через ЮKassa не работает`);
+      else console.info('[billing] ЮKassa настроена, автопродление включено');
+    }
     // Диагностика ИИ при старте: только провайдер, модель и имя недостающей переменной — без значений
     const { aiStatus } = await import('./lib/ai/provider');
     const st = aiStatus();

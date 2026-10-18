@@ -45,10 +45,10 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
         <Kpi label="30 дней" value={money(o.payments.d30)} sub={`${count(o.payments.d30)} платежей`} testid="kpi-paid-30" />
         <Kpi label="Активные подписки" value={o.subscriptions.active} hint="Пользователи с оплаченным Clymly Pro на текущий момент." testid="kpi-subs-active" />
         <Kpi label="Истёкшие подписки" value={o.subscriptions.expired} hint="Pro был оплачен, но срок закончился." />
-        <Kpi label="Отменённые подписки" value="—" hint="Не применимо: Pro оплачивается разово на 1 или 3 месяца, автопродления и отмены подписки в системе нет." />
+        <Kpi label="С автопродлением" value={o.subscriptions.autopay} hint="Активный Pro и включённое автопродление (сохранённая карта ЮKassa). Отключение автопродления — удаление всех карт пользователем или после неудачных списаний." testid="kpi-autopay" />
         <Kpi label="Неуспешные платежи" value={o.payments.failed} sub={`ожидают оплаты: ${o.payments.pending}`} hint="Отменённые платежи (status = canceled). Ожидающие показаны отдельно." testid="kpi-failed" />
       </div>
-      <p className="mt-2 text-[12px] text-muted">Регулярная выручка (MRR) не рассчитывается: автопродления нет, каждая оплата разовая.</p>
+      <p className="mt-2 text-[12px] text-muted">Регулярная выручка (MRR) не рассчитывается: автопродление включается по желанию пользователя, автосписания учитываются как обычные подтверждённые оплаты.</p>
 
       <Section title={`Покупки по тарифам · ${PERIODS.find((p) => p.key === period)?.label ?? ''}`} className="mt-4" action={<Link href={qs('/admin/payments', { period, status: 'succeeded' })} className="text-[13px] font-medium text-accent-600 hover:text-accent-700">Платежи →</Link>}>
         <PlanStatsTable stats={plans} />

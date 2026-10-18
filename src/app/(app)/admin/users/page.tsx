@@ -64,7 +64,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                     <td className={cx(td, 'max-w-[220px] truncate')} title={u.email}>{u.email}</td>
                     <td className={cx(td, 'whitespace-nowrap')}>{fmtDate(u.createdAt)}</td>
                     <td className={cx(td, "whitespace-nowrap")}>{u.pdConsentAt ? "Активен" : <span className="text-warn">Не принял условия</span>}</td>
-                    <td className={cx(td, 'whitespace-nowrap')} data-testid="user-plan">{(() => { const l = tariffLabel(u, u.payments); return l === 'Free' ? l : <>{l}<div className="text-[11px] text-muted">до {fmtDate(u.planUntil)}</div></>; })()}</td>
+                    <td className={cx(td, 'whitespace-nowrap')} data-testid="user-plan">{(() => { const l = tariffLabel(u, u.payments); return l === 'Free' ? l : <>{l}<div className="text-[11px] text-muted">до {fmtDate(u.planUntil)}{u.autopayPlan ? ' · автопродление' : ''}</div></>; })()}</td>
                     <td className={cx(td, "whitespace-nowrap")} data-testid="user-sub">{SUB_LABEL[st]}</td>
                     <td className={cx(td, 'whitespace-nowrap text-ink-2')}>{st === 'none' ? '—' : `${fmtDate(start)} — ${fmtDate(u.planUntil)}`}</td>
                     <td className={cx(td, 'whitespace-nowrap')}>{u.last_amount != null ? <>{fmtMoney(u.last_amount, u.last_currency ?? 'RUB')}<div className="text-[11px] text-muted">{fmtDate(u.last_paid_at)}</div></> : '—'}</td>
@@ -79,7 +79,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           </TableWrap>
         )}
         <Pager page={f.page} total={total} size={PAGE_SIZE} href={(p) => qs('/admin/users', { ...base, page: p })} />
-        <p className="mt-3 text-[12px] leading-relaxed text-muted">Блокировка аккаунтов в системе не предусмотрена. «Не принял условия» — аккаунт создан переходом из JobToo, вход не завершён. Подписка Pro разовая (без автопродления): начало — первая оплата текущего непрерывного периода. Сумма «Всего оплат» — в рублях. «Последняя зафиксированная активность» — самое позднее из событий, которые сохраняются в базе: вход в аккаунт, загрузка резюме, анализ вакансии, письмо, ответ в тренажёре, создание заказа; просмотры страниц не отслеживаются. Первый источник — самый ранний переход по маркетинговой ссылке, связанный с аккаунтом; источник регистрации — последний переход перед регистрацией (last-touch).</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted">Блокировка аккаунтов в системе не предусмотрена. «Не принял условия» — аккаунт создан переходом из JobToo, вход не завершён. Начало подписки — первая оплата текущего непрерывного периода; «автопродление» — включено автопродление с сохранённой картой. Сумма «Всего оплат» — в рублях. «Последняя зафиксированная активность» — самое позднее из событий, которые сохраняются в базе: вход в аккаунт, загрузка резюме, анализ вакансии, письмо, ответ в тренажёре, создание заказа; просмотры страниц не отслеживаются. Первый источник — самый ранний переход по маркетинговой ссылке, связанный с аккаунтом; источник регистрации — последний переход перед регистрацией (last-touch).</p>
       </Section>
     </>
   );

@@ -1,9 +1,9 @@
 // Платёжные провайдеры. Общая бизнес-логика заказа — в service.ts, здесь только адаптеры.
 // «Карта»: заглушка (тестовая оплата без списания денег) или ЮKassa (PAYMENT_PROVIDER=yookassa, YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY).
 // ЮMoney — отдельный способ оплаты (YOOMONEY_ENABLED=1, см. yoomoney.ts), работает параллельно со способом «карта».
-import { randomUUID } from 'node:crypto';
 import { ApiError } from '../http';
 import { yooMoneyState } from './yoomoney';
+import { createYkPayment, getYkPayment } from './yookassa';
 
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled';
 
@@ -13,6 +13,7 @@ export interface CreatePaymentInput {
   description: string;
   returnUrl: string;
   customerEmail: string;
+  userId?: string;
 }
 
 export type ProviderName = 'stub' | 'yookassa' | 'yoomoney';
@@ -37,47 +38,18 @@ const stub: PaymentProvider = {
   },
 };
 
-/* ───────── ЮKassa (API v3) — подготовлено, не проверено на боевом магазине ───────── */
-const YK_API = 'https://api.yookassa.ru/v3';
-
-function ykAuth() {
-  const shop = process.env.YOOKASSA_SHOP_ID, key = process.env.YOOKASSA_SECRET_KEY;
-  if (!shop || !key) throw new Error('YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY не заданы');
-  return 'Basic ' + Buffer.from(`${shop}:${key}`).toString('base64');
-}
-
+/* ───────── ЮKassa (API v3) — клиент в yookassa.ts ───────── */
 const ykStatus = (s: string): PaymentStatus => (s === 'succeeded' ? 'succeeded' : s === 'canceled' ? 'canceled' : 'pending');
 
 const yookassa: PaymentProvider = {
   name: 'yookassa',
   async createPayment(i) {
-    const body: Record<string, unknown> = {
-      amount: { value: (i.amount / 100).toFixed(2), currency: 'RUB' },
-      capture: true,
-      confirmation: { type: 'redirect', return_url: i.returnUrl },
-      description: i.description.slice(0, 128),
-      metadata: { paymentId: i.paymentId },
-    };
-    // Чек по 54-ФЗ: включите, если в магазине ЮKassa подключена отправка чеков
-    if (process.env.YOOKASSA_RECEIPT === '1') {
-      body.receipt = {
-        customer: { email: i.customerEmail },
-        items: [{ description: i.description.slice(0, 128), quantity: '1.00', amount: body.amount, vat_code: Number(process.env.YOOKASSA_VAT_CODE ?? 1), payment_mode: 'full_payment', payment_subject: 'service' }],
-      };
-    }
-    const r = await fetch(`${YK_API}/payments`, {
-      method: 'POST',
-      headers: { Authorization: ykAuth(), 'Idempotence-Key': i.paymentId || randomUUID(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`ЮKassa: ${r.status} ${await r.text().catch(() => '')}`);
-    const p = await r.json();
-    return { providerPaymentId: p.id, confirmationUrl: p.confirmation?.confirmation_url, status: ykStatus(p.status) };
+    // save_payment_method не передаём: сохранить карту для автопродления решает сам покупатель галочкой на странице ЮKassa
+    const p = await createYkPayment({ orderId: i.paymentId, userId: i.userId ?? '', kopecks: i.amount, description: i.description, email: i.customerEmail, returnUrl: i.returnUrl });
+    return { providerPaymentId: p.id, confirmationUrl: p.confirmation?.confirmation_url ?? '', status: ykStatus(p.status) };
   },
   async getStatus(id) {
-    const r = await fetch(`${YK_API}/payments/${encodeURIComponent(id)}`, { headers: { Authorization: ykAuth() } });
-    if (!r.ok) throw new Error(`ЮKassa: ${r.status}`);
-    return ykStatus((await r.json()).status);
+    return ykStatus((await getYkPayment(id)).status);
   },
 };
 

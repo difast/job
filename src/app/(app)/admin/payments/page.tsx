@@ -23,7 +23,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const f: PaymentFilters = {
     period: parsePeriod(sp.period),
-    status: (['succeeded', 'pending', 'canceled', 'review'] as const).find((s) => s === sp.status),
+    status: (['succeeded', 'pending', 'canceled', 'refunded', 'review'] as const).find((s) => s === sp.status),
     plan: PLANS.some((p) => p.id === sp.plan && p.price > 0) ? sp.plan : undefined,
     provider: sp.provider && /^[a-z]{2,20}$/.test(sp.provider) ? sp.provider : undefined,
     source: sp.source && /^[a-z0-9-]{1,40}$/.test(sp.source) ? sp.source : undefined,
@@ -37,7 +37,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
       <h1 className="mb-5 text-[26px] font-semibold tracking-[-0.02em]">Платежи</h1>
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2" aria-label="Фильтры платежей">
         <label className="flex flex-col gap-1 text-[12px] text-muted">Период<select name="period" defaultValue={f.period} className={select}>{PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}</select></label>
-        <label className="flex flex-col gap-1 text-[12px] text-muted">Статус<select name="status" defaultValue={f.status ?? ''} className={select}><option value="">Все</option><option value="succeeded">Оплачен</option><option value="pending">Ожидает оплаты</option><option value="canceled">Отменён</option><option value="review">Требует проверки</option></select></label>
+        <label className="flex flex-col gap-1 text-[12px] text-muted">Статус<select name="status" defaultValue={f.status ?? ''} className={select}><option value="">Все</option><option value="succeeded">Оплачен</option><option value="pending">Ожидает оплаты</option><option value="canceled">Отменён</option><option value="refunded">Возврат</option><option value="review">Требует проверки</option></select></label>
         <label className="flex flex-col gap-1 text-[12px] text-muted">Тариф<select name="plan" defaultValue={f.plan ?? ''} className={select}><option value="">Все</option>{PLANS.filter((p) => p.price > 0).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
         <label className="flex flex-col gap-1 text-[12px] text-muted">Провайдер<select name="provider" defaultValue={f.provider ?? ''} className={select}><option value="">Все</option>{r.providers.map((p) => <option key={p} value={p}>{p === 'stub' ? 'Тестовый (stub)' : PROVIDER_LABEL[p] ?? p}</option>)}</select></label>
         <label className="flex flex-col gap-1 text-[12px] text-muted">Источник<select name="source" defaultValue={f.source ?? ''} className={select}><option value="">Все</option>{links.map((l) => <option key={l.slug} value={l.slug}>{l.name}</option>)}<option value="none">Неизвестен</option></select></label>
@@ -68,7 +68,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
                   <tr key={p.id} data-testid="payment-row" data-provider={p.provider} data-plan={p.planId}>
                     <td className={cx(td, 'whitespace-nowrap')}>{fmtDate(p.createdAt, true)}</td>
                     <td className={cx(td, 'max-w-[220px] truncate')} title={p.user.email}>{p.user.email}<div className="font-mono text-[11px] text-muted">{p.user.id.slice(-8)}</div></td>
-                    <td className={cx(td, 'whitespace-nowrap')} data-testid="payment-plan">{planLabel(p.planId, p)}</td>
+                    <td className={cx(td, 'whitespace-nowrap')} data-testid="payment-plan">{planLabel(p.planId, p)}{p.recurring && <div className="text-[11px] text-muted">автопродление</div>}</td>
                     <td className={cx(td, 'tabular whitespace-nowrap')}>{fmtMoney(p.amount, p.currency)} <span className="text-[11px] text-muted">{p.currency}</span></td>
                     <td className={td}><PaymentStatusBadge status={p.status} issue={p.issue} />{p.issue && <div className="mt-1 text-[11px] text-bad">{ISSUE[p.issue] ?? p.issue}</div>}</td>
                     <td className={td} data-testid="payment-provider">{PROVIDER_LABEL[p.provider] ?? p.provider}</td>
@@ -90,7 +90,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
           </TableWrap>
         )}
         <Pager page={f.page} total={r.total} size={PAGE_SIZE} href={(p) => qs('/admin/payments', { ...base, page: p })} />
-        <p className="mt-3 text-[12px] leading-relaxed text-muted">Период — по дате создания заказа (МСК). Тариф — из заказа (id предложения и снимок названия/срока на момент покупки), сумма — фактическая сумма заказа; тариф по сумме не определяется. Подтверждённая выручка — только оплаты, подтверждённые провайдером; ожидающие, отменённые и «требуют проверки» не входят. Способ оплаты внутри провайдера (карта, СБП, кошелёк) не сохраняется. Возвратов в системе нет. Повторные уведомления провайдера не создают новых записей и не продлевают Pro повторно — они видны в истории заказа.</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted">Период — по дате создания заказа (МСК). Тариф — из заказа (id предложения и снимок названия/срока на момент покупки), сумма — фактическая сумма заказа; тариф по сумме не определяется. Подтверждённая выручка — только оплаты, подтверждённые провайдером; ожидающие, отменённые и «требуют проверки» не входят. Способ оплаты внутри провайдера (карта, СБП, кошелёк) не сохраняется. «Автопродление» — автосписание с сохранённой карты. Полный возврат из кабинета ЮKassa переводит оплату в «Возврат» (не входит в выручку) и сокращает срок Pro. Проверочные платежи 1 ₽ за привязку карты здесь не показываются. Повторные уведомления провайдера не создают новых записей и не продлевают Pro повторно — они видны в истории заказа.</p>
       </Section>
     </>
   );

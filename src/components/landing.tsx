@@ -241,7 +241,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
           <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-accent-600">Тарифы</div>
           <h2 id="pricing-h" className="font-display mt-4 text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[44px]">Начните бесплатно</h2>
         </div>
-        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro оплачивается разово — на 1 или сразу на 3 месяца (так выгоднее), без автопродления.</p>
+        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro — на 1 или сразу на 3 месяца (так выгоднее). Автопродление включается, только если вы сами отметите «Запомнить данные карты».</p>
       </div>
       <div className="mt-12 grid gap-7 lg:grid-cols-3 lg:gap-5">
         <article className="flex flex-col rounded-[28px] border border-line-strong bg-white p-7 sm:p-9" data-testid="pricing-free">
@@ -255,6 +255,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
           </Link>
         </article>
 
+        {pro.price > 0 && (
         <article className="relative flex flex-col overflow-hidden rounded-[28px] bg-ink p-7 text-milk sm:p-9" data-testid="pricing-pro">
           <svg aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-64 w-64" viewBox="0 0 200 200" fill="none"><circle cx="100" cy="100" r="70" stroke={ACCENT} strokeWidth="44" opacity="0.55" /></svg>
           <div className="relative flex flex-wrap items-center gap-2.5">
@@ -268,7 +269,9 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
             Подключить Pro на 1 месяц<Icon name="arrow-right" size={18} />
           </Link>
         </article>
+        )}
 
+        {quarter.price > 0 && (
         <article className="relative flex flex-col rounded-[28px] border-2 border-accent-600 bg-white p-7 sm:p-9" data-testid="pricing-pro-quarter">
           <span className="absolute -top-3.5 left-7 rounded-full bg-accent-600 px-3 py-1 text-[12px] font-semibold text-white sm:left-9">{qNotes.badge}</span>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -282,6 +285,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
             Оформить на 3 месяца<Icon name="arrow-right" size={18} />
           </Link>
         </article>
+        )}
       </div>
       <p className="mt-5 text-center text-[13px] leading-relaxed text-muted">
         Pro на 1 месяц и на 3 месяца отличаются только сроком и способом оплаты: возможности одинаковые.

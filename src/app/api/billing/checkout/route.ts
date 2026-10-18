@@ -8,7 +8,8 @@ const schema = z.object({ planId: z.string().min(1).max(40), method: z.enum(['ca
 
 /** Адрес сайта для return_url: APP_URL или заголовки прокси (Timeweb проксирует через HTTPS). */
 function originOf(req: Request) {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  const base = process.env.APP_URL || process.env.FRONTEND_URL;
+  if (base) return base.replace(/\/$/, '');
   const h = req.headers;
   const host = h.get('x-forwarded-host') ?? h.get('host');
   const proto = h.get('x-forwarded-proto') ?? new URL(req.url).protocol.replace(':', '');

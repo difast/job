@@ -125,7 +125,7 @@ let d = await (await anon.json('/api/billing/checkout', { planId: 'pro-month' })
 await anon.json(`/api/billing/stub/${d.paymentId}`, { action: 'succeed' });
 const pm = await waitMail(email, 'payment');
 ok(!!pm && pm.subject === 'Оплата «Pro — 1 месяц» прошла — Clymly', 'письмо об оплате с названием тарифа в теме');
-ok(pm && pm.body.includes('499 ₽') && pm.body.includes(d.paymentId) && pm.body.includes('Pro действует до') && pm.body.includes('без автопродления') && pm.body.includes('деньги не списывались'), 'в письме: сумма, номер заказа, срок, без автопродления, пометка тестового режима');
+ok(pm && pm.body.includes('499 ₽') && pm.body.includes(d.paymentId) && pm.body.includes('Pro действует до') && pm.body.includes('Автопродление') && pm.body.includes('не включено') && pm.body.includes('деньги не списывались'), 'в письме: сумма, номер заказа, срок, «автопродление не включено», пометка тестового режима');
 d = await (await anon.json('/api/billing/checkout', { planId: 'pro-quarter' })).json();
 await anon.json(`/api/billing/stub/${d.paymentId}`, { action: 'cancel' });
 await sleep(1000);
@@ -141,7 +141,7 @@ ok(!!pm2 && pm2.body.includes('1 190 ₽') && pm2.body.includes('Новый пе
 section('Напоминание и окончание Pro');
 await db.user.update({ where: { email }, data: { planUntil: new Date(Date.now() + 2 * 86_400_000), proReminderFor: null, proEndedFor: null } });
 const end1 = await waitMail(email, 'pro-ending', 1, 15_000);
-ok(!!end1 && end1.subject.startsWith('Clymly Pro закончится') && end1.body.includes('Автопродления нет') && end1.body.includes('/billing'), 'за 3 дня до конца — напоминание с продлением');
+ok(!!end1 && end1.subject.startsWith('Clymly Pro закончится') && end1.body.includes('Автопродление не включено') && end1.body.includes('/billing'), 'за 3 дня до конца — напоминание с продлением');
 await sleep(5000);
 ok(mails(email, 'pro-ending').length === 1, 'напоминание не повторяется для того же срока');
 await db.user.update({ where: { email }, data: { planUntil: new Date(Date.now() - 3_600_000) } });
