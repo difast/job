@@ -187,7 +187,7 @@ await hook('payment.waiting_for_capture', cp.providerPaymentId);
 cp = await db.payment.findUnique({ where: { id: d.orderId } });
 uc = await u(C.id);
 const remote = (await fetch('http://localhost:4300/__payments').then((r) => r.json())).find((p) => p.id === cp.providerPaymentId);
-ok(cp.status === 'card_saved' && uc.cards.length === 2 && uc.cards.find((c) => c.title === 'MIR •• 2222' && !c.isPrimary), 'карта добавлена (не основной), заказ «карта привязана»');
+ok(cp.status === 'card_saved' && uc.cards.length === 2 && uc.cards.find((c) => c.title === 'MIR •• 2222')?.isPrimary && uc.cards.filter((c) => c.isPrimary).length === 1 && uc.cards.find((c) => c.title === 'Visa •• 1111' && !c.isPrimary), 'новая карта сразу стала основной, прежняя осталась запасной; заказ «карта привязана»');
 ok(remote.status === 'canceled' && remote.canceledByMerchant && (await ykReqs()).some((r) => r.path.endsWith('/cancel') && r.key === `${cp.id}-cancel`), '1 ₽ отменён: POST /cancel с Idempotence-Key «<заказ>-cancel»');
 ok(!!(await waitFor(() => mailOf(C.email, 'card-bound')[0])), 'письмо «Карта привязана»');
 d = await body(await C.json('/api/billing/cards'));

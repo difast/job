@@ -28,7 +28,7 @@ export default async function BillingResult({ searchParams }: { searchParams: Pr
 
   const card = p?.kind === 'card';
   const view = card ? {
-    paid: { icon: 'check-circle', tone: 'text-ok', title: 'Карта привязана', text: 'Карта сохранена для автопродления Pro. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.' },
+    paid: { icon: 'check-circle', tone: 'text-ok', title: 'Карта привязана', text: 'Карта сохранена и стала основной для автопродления Pro, прежние карты остались запасными. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.' },
     awaiting: { icon: 'clock', tone: 'text-warn', title: 'Проверяем карту', text: 'Платёжный сервис ещё не подтвердил привязку. Обычно это занимает до минуты — страница обновится сама.' },
     not_paid: { icon: 'alert', tone: 'text-ink-2', title: 'Карта не привязана', text: 'Привязка не завершена или карта не сохранена. Проверочный 1 ₽ не списан. Можно попробовать ещё раз.' },
     review: { icon: 'alert', tone: 'text-bad', title: 'Не удалось проверить привязку', text: `Напишите на ${COMPANY.email} и укажите номер заказа.` },

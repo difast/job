@@ -166,7 +166,7 @@ export async function sendCardBound(userId: string, title: string) {
   if (!u) return false;
   return deliver('card-bound', u.email, 'Карта привязана — Clymly', layout({
     title: 'Карта привязана',
-    intro: `${first(u.name)}, карта ${title} привязана для автопродления Clymly Pro. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.`,
+    intro: `${first(u.name)}, карта ${title} привязана и стала основной для автопродления Clymly Pro; остальные карты остались запасными. Проверочный платёж 1 ₽ отменён — деньги вернутся на карту, срок зависит от банка.`,
     button: 'Тариф и оплата', url: `${site()}/billing#cards`,
     outro: `Удалить карту можно в любой момент в разделе «Тариф и оплата». ${IF_NOT_YOU} ${SUPPORT}`,
   }));

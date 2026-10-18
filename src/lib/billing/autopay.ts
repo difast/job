@@ -118,13 +118,15 @@ async function processCardPayment(p: { id: string; userId: string; planId: strin
   const pm = remote.payment_method;
   if (remote.status === 'waiting_for_capture' || remote.status === 'succeeded') {
     if (p.status === 'pending') {
-      const card = pm?.saved && pm.id ? await saveCard(p.userId, pm, false) : null;
+      // Новая привязанная карта сразу становится основной; прежние остаются запасными
+      const card = pm?.saved && pm.id ? await saveCard(p.userId, pm, true) : null;
       const moved = await db.payment.updateMany({ where: { id: p.id, status: 'pending' }, data: card ? { status: 'card_saved', cardId: card.id } : { status: 'canceled', failReason: pm?.saved ? 'cards_limit' : 'not_saved' } });
       if (moved.count) {
         await logEvent(p.id, card ? 'card_saved' : 'canceled', source, card ? card.title : 'карта не сохранена');
         if (card) {
           const u = await db.user.findUnique({ where: { id: p.userId }, select: { autopayPlan: true } });
           if (!u?.autopayPlan) await enableAutopay(p.userId, p.planId);
+          else await db.user.update({ where: { id: p.userId }, data: { autopayFails: 0, autopayLastTry: null } }); // у новой основной — свои попытки
           mail((m) => m.sendCardBound(p.userId, card.title));
         }
       }

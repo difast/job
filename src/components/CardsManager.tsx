@@ -54,7 +54,7 @@ export default function CardsManager({ cards, autopay, next, canBind }: {
           {canBind && cards.length < 5 && (
             <div className="mt-4">
               <Button variant="secondary" size="sm" loading={busy === 'bind'} disabled={!!busy} onClick={bind} data-testid="card-bind">Привязать другую карту</Button>
-              <p className="mt-1.5 text-xs text-muted">Для проверки спишем и сразу отменим 1 ₽ — деньги вернутся, срок зависит от банка.</p>
+              <p className="mt-1.5 text-xs text-muted">Новая карта станет основной, прежние останутся запасными. Для проверки спишем и сразу отменим 1 ₽ — деньги вернутся, срок зависит от банка.</p>
             </div>
           )}
         </>
