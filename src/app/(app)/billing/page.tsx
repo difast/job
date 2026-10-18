@@ -6,7 +6,6 @@ import { AUTOPAY_NOTE, PLANS, currentTier, formatRub, getPlan, planLabel, planRa
 import { chargeDate } from '@/lib/billing/autopay';
 import { ykReady } from '@/lib/billing/yookassa';
 import CardsManager from '@/components/CardsManager';
-import { demoState, isCardDemo } from '@/lib/billing/card-demo';
 import { PROVIDER_LABEL, getProvider, isTestMode, yooMoneyOffered } from '@/lib/billing/provider';
 import { currentPurchase } from '@/lib/billing/service';
 import { Alert, Card, CardTitle, PageHeader } from '@/components/ui';
@@ -35,15 +34,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     ? { date: fmtDate(me.autopayNoticeAt && me.autopayNotice?.getTime() === me.planUntil.getTime() ? chargeDate(me.planUntil, me.autopayNoticeAt) : new Date(me.planUntil.getTime() - 86_400_000)), amount: formatRub(me.autopayAmount ?? apPlan?.price ?? 0) }
     : null;
   const showCards = (tier === 'pro' && ykReady()) || me.cards.length > 0;
-  // ВРЕМЕННО: демо привязки карт для скриншотов ЮKassa (CARD_DEMO_EMAILS) — только отображение, база не меняется
-  const demo = isCardDemo(user.email) ? demoState(user.id) : null;
-  const test = isTestMode() && !demo;
-  // Демо привязки карт (временно): тарифы показываются как при активном Pro · 1 месяц с автопродлением.
-  const vTier = demo ? 'pro' : tier;
-  const vActiveId = demo ? 'pro-month' : active?.planId;
-  const vAutopay = demo ? demo.cards.length > 0 : autopay;
-  const vApPlan = demo ? getPlan('pro-month') : apPlan;
-  const vNext = demo ? { date: fmtDate(new Date(demo.until.getTime() - 86_400_000)) } : nextCharge;
+  const test = isTestMode();
   const ym = yooMoneyOffered();
   const cardName = getProvider().name === 'yookassa' ? 'ЮKassa' : 'тестовую оплату';
 
@@ -59,29 +50,26 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         <CardTitle icon="shield">Текущий тариф</CardTitle>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{demo ? 'Pro · 1 месяц' : tier === 'pro' ? (active ? planLabel(active.planId, active) : 'Pro') : 'Free'}</div>
-            <div className="mt-0.5 text-sm text-ink-2">{demo ? `Оплачен до ${fmtDate(demo.until)}` : tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : 'Все функции Clymly доступны'}</div>
+            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{tier === 'pro' ? (active ? planLabel(active.planId, active) : 'Pro') : 'Free'}</div>
+            <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : 'Все функции Clymly доступны'}</div>
           </div>
-          {(tier === 'pro' || demo) && <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Icon name="check-circle" size={16} />Активен{(demo ? demo.cards.length > 0 : autopay) ? ' · автопродление включено' : ''}</span>}
+          {tier === 'pro' && <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Icon name="check-circle" size={16} />Активен{autopay ? ' · автопродление включено' : ''}</span>}
         </div>
       </Card>
 
-      {demo
-        ? <CardsManager demo cards={demo.cards.map(({ id, title, isPrimary }) => ({ id, title, isPrimary }))} autopay={demo.cards.length > 0} canBind
-            next={{ date: vNext!.date, amount: formatRub(getPlan('pro-month')?.price ?? 0) }} />
-        : showCards && <CardsManager cards={me.cards} autopay={autopay} next={nextCharge} canBind={tier === 'pro' && ykReady()} />}
+      {showCards && <CardsManager cards={me.cards} autopay={autopay} next={nextCharge} canBind={tier === 'pro' && ykReady()} />}
 
       <section aria-labelledby="plans">
         <h2 id="plans" className="mb-4 text-lg font-semibold tracking-tight">Тарифы</h2>
         <div className="grid gap-4 md:grid-cols-3 md:gap-5">
           {PLANS.filter((p) => p.tier === 'free' || p.price > 0).map((p) => (
-            <PlanCard key={p.id} plan={p} selected={chosen && chosen.price > 0 ? chosen.id === p.id : undefined} current={p.tier === vTier && (p.tier === 'free' || p.id === vActiveId)}
+            <PlanCard key={p.id} plan={p} selected={chosen && chosen.price > 0 ? chosen.id === p.id : undefined} current={p.tier === tier && (p.tier === 'free' || p.id === active?.planId)}
               action={p.price === 0
-                ? <div className="flex h-11 items-center justify-center rounded-lg border border-line text-sm text-muted">{vTier === 'free' ? 'Ваш текущий тариф' : 'Входит в Clymly Pro'}</div>
-                : vAutopay && vApPlan && planRank(p.id) <= planRank(vApPlan.id)
-                  ? <div className="flex min-h-11 items-center justify-center rounded-lg border border-line px-3 text-center text-sm text-muted" data-testid="autopay-covers">{p.id === vApPlan.id ? `Продлится автоматически${vNext ? ` ${vNext.date}` : ''}` : 'Доступен после отключения автопродления'}</div>
+                ? <div className="flex h-11 items-center justify-center rounded-lg border border-line text-sm text-muted">{tier === 'free' ? 'Ваш текущий тариф' : 'Входит в Clymly Pro'}</div>
+                : autopay && apPlan && planRank(p.id) <= planRank(apPlan.id)
+                  ? <div className="flex min-h-11 items-center justify-center rounded-lg border border-line px-3 text-center text-sm text-muted" data-testid="autopay-covers">{p.id === apPlan.id ? `Продлится автоматически${nextCharge ? ` ${nextCharge.date}` : ''}` : 'Доступен после отключения автопродления'}</div>
                   : <div className="space-y-2">
-                    <CheckoutButton planId={p.id} variant={(chosen && chosen.price > 0 ? chosen.id === p.id : p.highlight) ? 'primary' : 'secondary'} label={(p.months === 1 ? (vTier === 'pro' ? 'Продлить на 1 месяц' : 'Подключить Pro на 1 месяц') : (vTier === 'pro' ? 'Продлить на 3 месяца' : 'Оформить на 3 месяца')) + (ym ? ' картой' : '')} testid="pay-card" />
+                    <CheckoutButton planId={p.id} variant={(chosen && chosen.price > 0 ? chosen.id === p.id : p.highlight) ? 'primary' : 'secondary'} label={(p.months === 1 ? (tier === 'pro' ? 'Продлить на 1 месяц' : 'Подключить Pro на 1 месяц') : (tier === 'pro' ? 'Продлить на 3 месяца' : 'Оформить на 3 месяца')) + (ym ? ' картой' : '')} testid="pay-card" />
                     {ym && <CheckoutButton planId={p.id} method="yoomoney" variant="ghost" label="Оплатить через ЮMoney" testid="pay-yoomoney" />}
                   </div>} />
           ))}

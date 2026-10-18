@@ -10,8 +10,8 @@ import { request } from '@/lib/client';
 export interface CardView { id: string; title: string; isPrimary: boolean }
 
 /** «Привязанные карты»: основная, сделать основной, удалить по одной, привязать новую (проверочный 1 ₽). */
-export default function CardsManager({ cards, autopay, next, canBind, demo = false }: {
-  cards: CardView[]; autopay: boolean; next: { date: string; amount: string } | null; canBind: boolean; demo?: boolean;
+export default function CardsManager({ cards, autopay, next, canBind }: {
+  cards: CardView[]; autopay: boolean; next: { date: string; amount: string } | null; canBind: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -22,18 +22,10 @@ export default function CardsManager({ cards, autopay, next, canBind, demo = fal
   const [on, setOn] = useState(autopay);
   useEffect(() => { setList(cards); setOn(autopay); }, [cards, autopay]);
 
-  // ВРЕМЕННО: в демо-режиме (скриншоты для ЮKassa) те же действия идут в /api/billing/card-demo
-  const DEMO = '/api/billing/card-demo';
   async function act(key: string, url: string, after?: (d: Record<string, unknown>) => void) {
     if (busy) return;
     setBusy(key); setError('');
-    let json: Record<string, string> | undefined;
-    if (demo) {
-      const m = url.match(/\/cards\/([^/]+)\/(primary|delete)$/);
-      json = m ? { action: m[2], id: m[1] } : url === '/api/billing/cards' ? { action: 'bind' } : { action: 'reset' };
-      url = DEMO;
-    }
-    const r = await request<Record<string, unknown>>(url, { method: 'POST', json, timeoutMs: 30_000 });
+    const r = await request<Record<string, unknown>>(url, { method: 'POST', timeoutMs: 30_000 });
     setBusy(null);
     if (!r.ok) { setError(r.error); return; }
     if (after) return after(r.data);
@@ -88,12 +80,6 @@ export default function CardsManager({ cards, autopay, next, canBind, demo = fal
         </div>
       )}
       {error && <Alert className="mt-3">{error}</Alert>}
-      {demo && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-dashed border-line pt-3 text-xs text-muted" data-testid="demo-panel">
-          <span>Демо-режим для скриншотов: карты не настоящие, запросов в ЮKassa нет.</span>
-          <Button size="sm" variant="ghost" loading={busy === 'reset'} disabled={!!busy} onClick={() => act('reset', '/api/billing/card-demo/reset', (d) => { if (Array.isArray(d.cards)) { setList(d.cards as CardView[]); setOn(d.cards.length > 0); } router.refresh(); })} data-testid="demo-reset">Сбросить демо</Button>
-        </div>
-      )}
     </section>
   );
 }
