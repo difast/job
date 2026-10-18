@@ -199,7 +199,7 @@ ok((await db.resume.count({ where: { userId: dUser.id } })) === 0 && (await db.s
 ok((await db.payment.count({ where: { userId: dUser.id, status: 'succeeded' } })) === 1, 'платёж сохранён (обезличенно) для учёта');
 ok((await D2.json('/api/billing/checkout', { planId: 'x' })).status === 401 && (await new Client().json('/api/auth/login', { email: delEmail, password: 'password123' })).status === 401, 'войти в удалённый аккаунт нельзя');
 const ad = await waitMail(delEmail, 'account-deleted');
-ok(!!ad && ad.subject === 'Аккаунт Clymly удалён' && ad.body.includes('Автопродление Pro отключено') && ad.body.includes('обезличенном'), 'письмо «Аккаунт удалён»');
+ok(!!ad && ad.subject === 'Аккаунт Clymly удалён' && ad.body.includes('Автопродление Pro отключено') && ad.body.includes('обезличенном') && ad.body.includes('неиспользованные дни') && ad.body.includes(dd.paymentId), 'письмо «Аккаунт удалён»: про возврат за неиспользованные дни и номер заказа');
 ok((await (await new Client().req('/login?deleted=1')).text()).includes('Аккаунт удалён'), 'после удаления на странице входа — сообщение');
 ok((await new Client().json('/api/auth/register', { name: 'Снова', email: delEmail, password: 'password123', consent: true })).status === 200, 'с тем же адресом можно зарегистрироваться заново');
 

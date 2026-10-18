@@ -73,7 +73,7 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
 
   async function startDelete() {
     if (busy) return;
-    const ok = await confirm({ title: 'Удалить аккаунт?', text: `Будут безвозвратно удалены профиль, резюме, вакансии, адаптации, сопроводительные письма и история тренировок. Сохранённые карты отвяжутся, автопродление отключится, оставшийся срок Pro сгорит.${mailOn ? ' Для подтверждения пришлём код на почту.' : ''}`, confirm: mailOn ? 'Получить код' : 'Продолжить', danger: true });
+    const ok = await confirm({ title: 'Удалить аккаунт?', text: `Будут безвозвратно удалены профиль, резюме, вакансии, адаптации, сопроводительные письма и история тренировок. Сохранённые карты отвяжутся, автопродление отключится, доступ к Pro прекратится — за неиспользованные дни можно вернуть деньги по заявлению на support@clymly.ru. Восстановить аккаунт будет нельзя.${mailOn ? ' Для подтверждения пришлём код на почту.' : ''}`, confirm: mailOn ? 'Получить код' : 'Продолжить', danger: true });
     if (!ok) return;
     if (mailOn) await sendCode('delete', setDelError); else setStep('delete');
   }

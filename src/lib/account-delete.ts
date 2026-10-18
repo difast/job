@@ -3,12 +3,16 @@
 import { randomBytes } from 'node:crypto';
 import { db } from './db';
 import { currentTier } from './billing/plans';
+import { currentPurchase } from './billing/service';
 import { sendAccountDeleted } from './emails';
 
 export async function deleteAccount(userId: string) {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user || user.deletedAt) return;
-  const hadPro = currentTier(user).tier === 'pro' || !!user.autopayPlan;
+  // Для письма: номер заказа активного Pro — по нему можно вернуть деньги за неиспользованные дни
+  const tier = currentTier(user);
+  const active = tier.tier === 'pro' ? await currentPurchase(userId) : null;
+  const pro = tier.tier === 'pro' && tier.until ? { orderId: active?.id ?? '—', until: tier.until } : null;
   const now = new Date();
   await db.$transaction([
     db.session.deleteMany({ where: { userId } }),
@@ -33,5 +37,5 @@ export async function deleteAccount(userId: string) {
       },
     }),
   ]);
-  void sendAccountDeleted(user, hadPro);
+  void sendAccountDeleted(user, pro);
 }

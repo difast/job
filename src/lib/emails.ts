@@ -74,17 +74,17 @@ export const sendCode = (u: { name: string; email: string }, code: string, purpo
   deliver(`code-${purpose}`, u.email, purpose === 'password' ? 'Код для смены пароля в Clymly' : 'Код для удаления аккаунта Clymly', codeMail(u, code, purpose));
 
 /* ───────── Аккаунт удалён ───────── */
-export function accountDeletedMail(u: { name: string; email: string }, hadPro: boolean) {
+export function accountDeletedMail(u: { name: string; email: string }, pro: { orderId: string; until: Date } | null) {
   return layout({
     title: 'Аккаунт удалён',
-    intro: `${first(u.name)}, аккаунт ${u.email} в Clymly удалён ${date(new Date())} по вашему запросу. Мы стёрли профиль, резюме, вакансии, адаптации, сопроводительные письма и историю тренировок, отвязали сохранённые карты и завершили все сеансы входа.${hadPro ? '\n\nАвтопродление Pro отключено — списаний больше не будет. Оставшийся оплаченный срок Pro аннулирован вместе с аккаунтом; по вопросам возврата напишите нам.' : ''}\n\nСведения об оплатах хранятся в обезличенном виде столько, сколько требует закон о бухгалтерском учёте. Спасибо, что были с нами — будем рады видеть вас снова.`,
+    intro: `${first(u.name)}, аккаунт ${u.email} в Clymly удалён ${date(new Date())} по вашему запросу. Мы стёрли профиль, резюме, вакансии, адаптации, сопроводительные письма и историю тренировок, отвязали сохранённые карты и завершили все сеансы входа.${pro ? `\n\nАвтопродление Pro отключено — списаний больше не будет. Доступ к Pro (был оплачен до ${date(pro.until)}) прекращён вместе с аккаунтом. За неиспользованные дни можно вернуть деньги: напишите на ${COMPANY.email} и укажите номер заказа ${pro.orderId}.` : ''}\n\nСведения об оплатах хранятся в обезличенном виде столько, сколько требует закон о бухгалтерском учёте. Спасибо, что были с нами — будем рады видеть вас снова.`,
     button: 'Создать новый аккаунт', url: `${site()}/register`,
     outro: `Если вы не удаляли аккаунт, срочно напишите нам на ${COMPANY.email}.`,
   });
 }
 
-export const sendAccountDeleted = (u: { name: string; email: string }, hadPro: boolean) =>
-  deliver('account-deleted', u.email, 'Аккаунт Clymly удалён', accountDeletedMail(u, hadPro));
+export const sendAccountDeleted = (u: { name: string; email: string }, pro: { orderId: string; until: Date } | null) =>
+  deliver('account-deleted', u.email, 'Аккаунт Clymly удалён', accountDeletedMail(u, pro));
 
 /* ───────── Приветствие (после подтверждения e-mail) ───────── */
 export function welcomeMail(u: { name: string }) {
