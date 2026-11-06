@@ -1,6 +1,7 @@
 // Что доступно на тарифе. Free: анализ резюме — 2 раза и разбор вакансии — 1 раз в календарный месяц (по Москве).
 // Адаптация резюме, сопроводительные письма и тренажёр собеседований — только Pro.
 // PLAN_LIMITS=off отключает ограничения (для отладки и старых тестов) — в рабочем окружении не задавать.
+// FULL_ACCESS_EMAILS — адреса через запятую с полным доступом без оплаты (владелец, тестировщики).
 import { db } from '../db';
 import { ApiError } from '../http';
 import { currentTier } from './plans';
@@ -21,8 +22,16 @@ const QUOTA_TEXT: Record<QuotaFeature, (n: number) => string> = {
 
 export const limitsOn = () => process.env.PLAN_LIMITS !== 'off';
 
-type PlanUser = { id: string; plan: string; planUntil: Date | null };
-export const isPro = (u: PlanUser) => !limitsOn() || currentTier(u).tier === 'pro';
+type PlanUser = { id: string; email?: string; plan: string; planUntil: Date | null };
+
+/** Полный доступ без оплаты: e-mail из FULL_ACCESS_EMAILS (адрес берётся из сессии в БД, не из запроса). */
+export function hasFullAccess(email: string | undefined, env: Record<string, string | undefined> = process.env) {
+  if (!email) return false;
+  const list = (env.FULL_ACCESS_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
+export const isPro = (u: PlanUser) => !limitsOn() || hasFullAccess(u.email) || currentTier(u).tier === 'pro';
 
 const MSK = 3 * 3600_000;
 /** Начало текущего календарного месяца по Москве. */

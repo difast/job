@@ -4,6 +4,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { PLANS, extendUntil, getPlan, monthlyPrice, planLabel, priceNotes, savings } from '../src/lib/billing/plans';
 import { computeSign, fetchOperation, parseNotification, quickpayFields, signString, verifySignature, yooMoneyState } from '../src/lib/billing/yoomoney';
 import { periodStartFromPayments } from '../src/lib/admin/subscription';
+import { hasFullAccess } from '../src/lib/billing/entitlements';
 
 const nbsp = (s: string) => s.replace(/[  ]/g, ' ');
 
@@ -112,4 +113,10 @@ test('ЮMoney: сверка операции через API (мок fetch)', asy
   assert.equal((seen!.headers as Record<string, string>).Authorization, 'Bearer tok');
   const bad = (async () => new Response(JSON.stringify({ error: 'invalid_token' }), { status: 200 })) as unknown as typeof fetch;
   await assert.rejects(fetchOperation('tok', '1', bad));
+});
+
+test('полный доступ без оплаты — только адресам из FULL_ACCESS_EMAILS', () => {
+  const env = { FULL_ACCESS_EMAILS: ' Owner@Example.com , tester@example.com' };
+  assert.ok(hasFullAccess('owner@example.com', env) && hasFullAccess('OWNER@example.com', env) && hasFullAccess('tester@example.com', env));
+  assert.ok(!hasFullAccess('other@example.com', env) && !hasFullAccess(undefined, env) && !hasFullAccess('owner@example.com', {}));
 });

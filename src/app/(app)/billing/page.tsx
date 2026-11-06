@@ -1,3 +1,4 @@
+import { hasFullAccess } from '@/lib/billing/entitlements';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requirePageUser } from '@/lib/auth';
@@ -50,8 +51,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         <CardTitle icon="shield">Текущий тариф</CardTitle>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{tier === 'pro' ? (active ? planLabel(active.planId, active) : 'Pro') : 'Free'}</div>
-            <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : 'Анализ резюме — 2 раза и разбор вакансии — 1 раз в месяц'}</div>
+            <div className="text-xl font-semibold tracking-tight" data-testid="current-tier">{tier === 'pro' ? (active ? planLabel(active.planId, active) : 'Pro') : hasFullAccess(user.email) ? 'Полный доступ' : 'Free'}</div>
+            <div className="mt-0.5 text-sm text-ink-2">{tier === 'pro' && until ? `Оплачен до ${fmtDate(until)}` : hasFullAccess(user.email) ? 'Все функции без ограничений и без оплаты' : 'Анализ резюме — 2 раза и разбор вакансии — 1 раз в месяц'}</div>
           </div>
           {tier === 'pro' && <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Icon name="check-circle" size={16} />Активен{autopay ? ' · автопродление включено' : ''}</span>}
         </div>

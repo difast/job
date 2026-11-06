@@ -2,7 +2,7 @@
 // баннеры Pro для Free; расход токенов в админке. ИИ — МОК GigaChat (scripts/mock-gigachat.mjs), оплата — заглушка stub.
 // Сервер: AI_PROVIDER=gigachat GIGACHAT_AUTH_KEY=<любой Base64> GIGACHAT_AUTH_URL=http://localhost:4200/api/v2/oauth
 //         GIGACHAT_API_URL=http://localhost:4200/api/v1 GIGACHAT_MAX_RETRIES=1 GIGACHAT_TIMEOUT_MS=5000 ADMIN_EMAILS=<ADMIN>
-//         (PLAN_LIMITS не задавать — лимиты включены). Запуск: ADMIN=<ADMIN> DATABASE_URL=… BASE_URL=http://localhost:3000 node scripts/plan-e2e.mjs
+//         FULL_ACCESS_EMAILS=full_access_e2e@example.com (PLAN_LIMITS не задавать — лимиты включены). Запуск: ADMIN=<ADMIN> DATABASE_URL=… BASE_URL=http://localhost:3000 node scripts/plan-e2e.mjs
 import { chromium } from 'playwright-core';
 import { PrismaClient } from '@prisma/client';
 import { startMockGigaChat } from './mock-gigachat.mjs';
@@ -136,6 +136,19 @@ ok(r.status === 200 && r.questions.length > 0, 'Pro: банк вопросов �
 h = clean(await F.text('/dashboard'));
 ok(!h.includes('data-testid="pro-banner"') && !h.includes('(в тарифе Pro)'), 'Pro: баннеров и замков нет');
 ok(!clean(await F.text('/interview')).includes('pro-paywall'), 'Pro: тренажёр открыт');
+
+section('Полный доступ по FULL_ACCESS_EMAILS');
+{
+  const X = new Client();
+  const r0 = await X.json('/api/auth/register', { name: 'Владелец', email: 'full_access_e2e@example.com', password: 'password123', consent: true });
+  if (r0.status !== 200) await X.json('/api/auth/login', { email: 'full_access_e2e@example.com', password: 'password123' });
+  await X.json('/api/profile', { professionId: 'software-developer', level: 'middle' }, 'PATCH');
+  await X.upload('resume.txt', RESUME);
+  for (let i = 0; i < 2; i++) await X.req('/api/resume', { method: 'PUT' });
+  ok((await X.req('/api/resume', { method: 'PUT' })).status === 200, 'без оплаты — анализ резюме сверх лимита Free');
+  ok((await X.req('/api/interview/questions?type=hr')).status === 200 && !clean(await X.text('/dashboard')).includes('data-testid="pro-banner"'), 'тренажёр доступен, баннеров Pro нет');
+  ok(clean(await X.text('/billing')).includes('Полный доступ'), '«Тариф и оплата»: «Полный доступ»');
+}
 
 /* ───────── Токены ───────── */
 section('Учёт токенов');
