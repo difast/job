@@ -8,6 +8,7 @@ import { deleteAccount } from '@/lib/account-delete';
 import { ApiError, handler, json } from '@/lib/http';
 import { LEVELS } from '@/lib/types';
 import { analyzeResume } from '@/lib/ai';
+import { aiRateLimit } from '@/lib/ai/limits';
 import { getProfessionContext } from '@/lib/profession';
 import { latestResume } from '@/lib/context';
 import { applyPendingImports } from '@/lib/partners/imports';
@@ -30,6 +31,7 @@ export const PATCH = handler(async (req: Request) => {
       const resume = await latestResume(user.id);
       const ctx = resume && (await getProfessionContext(updated.professionId, updated.level as 'junior'));
       if (resume && ctx) {
+        aiRateLimit(user.id); // при превышении профессия сохраняется, пересчёт оценки пропускается
         const analysis = await analyzeResume(resume.text, ctx);
         await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: ctx.id, level: ctx.level, analyzedAt: new Date() } });
       }
