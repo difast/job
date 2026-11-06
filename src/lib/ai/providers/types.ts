@@ -10,10 +10,14 @@ export interface ChatRequest {
   history?: { role: 'user' | 'assistant'; content: string }[]; // предыдущие реплики (повторная попытка исправить формат)
 }
 
+/** Расход токенов по ответу провайдера. */
+export interface Usage { prompt: number; completion: number; total: number }
+
 export interface ChatResult {
   text: string;
   finishReason: string | null;
   model: string | null;
+  usage?: Usage;
 }
 
 export interface AiProvider {

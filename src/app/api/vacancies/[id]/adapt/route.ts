@@ -5,6 +5,7 @@ import { trackFirstAction } from '@/lib/partners/events';
 import { adaptResume } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { requirePro } from '@/lib/billing/entitlements';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
 
 export const maxDuration = 60;
@@ -12,6 +13,7 @@ export const maxDuration = 60;
 // Создаёт (или пересоздаёт) адаптацию резюме под вакансию
 export const POST = handler(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireApiUser();
+  requirePro(user, 'adapt');
   const { id } = await params;
   const vacancy = await db.vacancy.findFirst({ where: { id, userId: user.id } });
   if (!vacancy) throw new ApiError(404, 'Вакансия не найдена');

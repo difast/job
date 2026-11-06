@@ -6,6 +6,7 @@ import { ConfirmProvider } from '@/components/Confirm';
 import { requirePageUser } from '@/lib/auth';
 import type { LevelKey } from '@/lib/types';
 import { currentTier } from '@/lib/billing/plans';
+import { isPro } from '@/lib/billing/entitlements';
 
 export const metadata: Metadata = { title: 'Личный кабинет', robots: { index: false, follow: false } };
 
@@ -16,7 +17,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <ToastProvider>
     <ConfirmProvider>
     <GoalProvider goal={{ professionId: user.professionId!, professionName: user.profession!.name, level }}>
-      <AppShell user={{ name: user.name, email: user.email }} professionName={user.profession!.name} level={level} tier={currentTier(user).tier}>{children}</AppShell>
+      <AppShell user={{ name: user.name, email: user.email }} professionName={user.profession!.name} level={level} tier={currentTier(user).tier} pro={isPro(user)}>{children}</AppShell>
     </GoalProvider>
     </ConfirmProvider>
     </ToastProvider>

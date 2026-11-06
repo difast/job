@@ -15,6 +15,8 @@ import { JobTooCard } from '@/components/JobTooButton';
 import { jobtooButtonState } from '@/lib/partners/state';
 import { mailEnabled } from '@/lib/mail';
 import { VerifyEmailBanner } from '@/components/VerifyEmail';
+import { isPro } from '@/lib/billing/entitlements';
+import { ProBadge, ProBanner } from '@/components/ProUpsell';
 
 const PRO_OFFER = PLANS.filter((p) => p.price > 0).map((p) => `${formatRub(p.price)} ${p.period}`).join(' или ');
 
@@ -36,13 +38,17 @@ export default async function Dashboard() {
   const a = resume ? parseJson<ResumeAnalysis>(resume.analysis, null as unknown as ResumeAnalysis) : null;
   const profession = user.profession!.name;
   const { tier, until } = currentTier(user);
+  const pro = isPro(user);
 
   const jt = resume ? await jobtooButtonState(user.id) : null;
   const stale = !!resume && (resume.professionId !== user.professionId || resume.level !== user.level);
 
   // Следующий шаг на пути «резюме → вакансия → адаптация → письмо → собеседование».
   // action: 'link' — кнопка открывает раздел; 'adapt' / 'reanalyze' — кнопка сразу выполняет действие.
-  const next: { step: number; title: string; text: string; href: string; cta: string; icon: IconName; action?: 'adapt' | 'reanalyze' } | null =
+  const proNext = (n: { step: number; title: string; text: string; href: string; cta: string; icon: IconName; action?: 'adapt' | 'reanalyze' }) =>
+    // На Free шаги 3–5 (адаптация, письмо, тренажёр) ведут к подключению Pro
+    !pro && n.step >= 3 && n.href !== '/vacancies' ? { ...n, action: undefined, text: `${n.text} Доступно в тарифе Pro.`, href: '/billing', cta: 'Подключить Pro', pro: true } : n;
+  const nextRaw: { step: number; title: string; text: string; href: string; cta: string; icon: IconName; action?: 'adapt' | 'reanalyze' } | null =
     !resume ? null
     : stale ? { step: 1, icon: 'refresh', action: 'reanalyze', title: 'Обновите анализ резюме под новую цель', text: `Оценка сделана для прежней профессии или уровня. Пересчитаем её для «${profession}», ${LEVEL_SHORT[user.level as LevelKey]} — займёт несколько секунд.`, href: '/resume', cta: 'Обновить анализ' }
     : !lastVacancy ? { step: 2, icon: 'search', title: 'Проверьте резюме на реальной вакансии', text: 'Вставьте описание вакансии — покажем процент соответствия, сильные стороны и пробелы.', href: '/vacancies', cta: 'Проанализировать вакансию' }
@@ -50,17 +56,18 @@ export default async function Dashboard() {
     : lastVacancy._count.coverLetters === 0 ? { step: 4, icon: 'mail', title: 'Подготовьте сопроводительное письмо', text: `Письмо под «${lastVacancy.title}» на основе вашего резюме — в одном из трёх стилей.`, href: `/cover-letter?vacancy=${lastVacancy.id}&create=1`, cta: 'Создать письмо' }
     : attempts === 0 ? { step: 5, icon: 'mic', title: 'Потренируйтесь перед собеседованием', text: `Вопросы для «${profession}», уровень ${LEVEL_SHORT[user.level as LevelKey]}. Ответьте — разберём ответ по ключевым пунктам.`, href: `/interview?vacancy=${lastVacancy.id}`, cta: 'Начать тренировку' }
     : { step: 5, icon: 'briefcase', title: 'Всё готово к отклику', text: 'Проанализируйте следующую вакансию или продолжите тренировку собеседования.', href: '/vacancies', cta: 'Добавить вакансию' };
+  const next = nextRaw && proNext(nextRaw);
 
   // Прогресс подготовки: каждый шаг ведёт к конкретному результату или следующему действию по последней вакансии
   // (адаптация, письмо, тренировка по вакансии), а не просто в раздел — общие разделы остаются в основном меню
   const lv = lastVacancy;
-  const path: { href: string; icon: IconName; label: string; value: string; done: boolean }[] = [
+  const path: { href: string; icon: IconName; label: string; value: string; done: boolean; pro?: boolean }[] = [
     { href: '/resume', icon: 'file', label: 'Резюме', value: a ? `${a.score} / 100` : 'не загружено', done: !!a },
     { href: lv ? `/vacancies/${lv.id}` : '/vacancies', icon: 'search', label: 'Анализ вакансий', value: vacancies ? String(vacancies) : '—', done: vacancies > 0 },
-    { href: lv?.adaptation ? `/vacancies/${lv.id}/adapt` : lv ? `/vacancies/${lv.id}` : '/vacancies', icon: 'layers', label: 'Адаптация резюме', value: adaptations ? String(adaptations) : '—', done: adaptations > 0 },
-    { href: lv ? `/cover-letter?vacancy=${lv.id}` : '/cover-letter', icon: 'mail', label: 'Сопроводительные письма', value: letters ? String(letters) : '—', done: letters > 0 },
-    { href: lv ? `/interview?vacancy=${lv.id}` : '/interview', icon: 'mic', label: 'Тренировки собеседования', value: attempts ? plural(attempts, 'ответ', 'ответа', 'ответов') : '—', done: attempts > 0 },
-  ];
+    { href: lv?.adaptation ? `/vacancies/${lv.id}/adapt` : lv ? `/vacancies/${lv.id}` : '/vacancies', icon: 'layers', label: 'Адаптация резюме', value: adaptations ? String(adaptations) : '—', done: adaptations > 0, pro: true },
+    { href: lv ? `/cover-letter?vacancy=${lv.id}` : '/cover-letter', icon: 'mail', label: 'Сопроводительные письма', value: letters ? String(letters) : '—', done: letters > 0, pro: true },
+    { href: lv ? `/interview?vacancy=${lv.id}` : '/interview', icon: 'mic', label: 'Тренировки собеседования', value: attempts ? plural(attempts, 'ответ', 'ответа', 'ответов') : '—', done: attempts > 0, pro: true },
+  ].map((p) => (p.pro && !pro ? { ...p, href: '/billing' } : p));
 
   return (
     <>
@@ -73,6 +80,7 @@ export default async function Dashboard() {
       </header>
 
       {!user.emailVerifiedAt && mailEnabled() && <VerifyEmailBanner email={user.email} />}
+      {!pro && <ProBanner className="mb-6" />}
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8">
         {/* Левая колонка: путь и статусы — как список разделов со счётчиками */}
@@ -90,7 +98,7 @@ export default async function Dashboard() {
                       <Icon name={p.done ? 'check' : p.icon} size={13} strokeWidth={p.done ? 2.4 : 1.7} />
                     </span>
                     <span className={cx('min-w-0 flex-1 truncate text-sm', p.done ? 'text-ink' : 'text-ink-2')}>{p.label}</span>
-                    <span className={cx('tabular shrink-0 text-[13px]', p.done ? 'font-medium text-ink' : 'text-muted')}>{p.value}</span>
+                    {p.pro && !pro ? <ProBadge className="shrink-0" /> : <span className={cx('tabular shrink-0 text-[13px]', p.done ? 'font-medium text-ink' : 'text-muted')}>{p.value}</span>}
                     <Icon name="chevron-right" size={14} className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
                   </Link>
                 </li>
@@ -118,7 +126,7 @@ export default async function Dashboard() {
                 <section className="rounded-2xl border border-line bg-white p-6 sm:p-7" data-testid="next-step">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="text-[13px] font-medium text-accent-600">Следующий шаг · {next.step} из 5</div>
+                      <div className="flex items-center gap-2 text-[13px] font-medium text-accent-600">Следующий шаг · {next.step} из 5{'pro' in next && <ProBadge />}</div>
                       <h2 className="mt-2 text-[22px] font-semibold leading-snug tracking-[-0.02em] sm:text-[26px]">{next.title}</h2>
                       <p className="mt-2 max-w-[560px] text-[15px] leading-relaxed text-ink-2">{next.text}</p>
                     </div>

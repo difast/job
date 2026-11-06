@@ -4,6 +4,7 @@ import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler, json } from '@/lib/http';
 import { generateQuestions, llmEnabled } from '@/lib/ai';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { requirePro } from '@/lib/billing/entitlements';
 import { requireProfession, latestResume } from '@/lib/context';
 import { parseJson, type VacancyAnalysis } from '@/lib/types';
 
@@ -22,6 +23,7 @@ const view = (q: { id: string; text: string; category: string; difficulty: numbe
  */
 export const POST = handler(async (req: Request) => {
   const user = await requireApiUser();
+  requirePro(user, 'interview');
   const { vacancyId, type } = schema.parse(await req.json().catch(() => ({})));
   const vacancy = await db.vacancy.findFirst({ where: { id: vacancyId, userId: user.id } });
   if (!vacancy) throw new ApiError(404, 'Вакансия не найдена');

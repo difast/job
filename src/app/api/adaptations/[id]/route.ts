@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler, json } from '@/lib/http';
 import { applyChanges } from '@/lib/changes';
+import { requirePro } from '@/lib/billing/entitlements';
 import { parseJson, type Change } from '@/lib/types';
 
 const schema = z.union([
@@ -13,6 +14,7 @@ const schema = z.union([
 // Принять / отклонить / отредактировать правку
 export const PATCH = handler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireApiUser();
+  requirePro(user, 'adapt');
   const { id } = await params;
   const a = await db.adaptation.findFirst({ where: { id, vacancy: { userId: user.id } }, include: { resume: true } });
   if (!a) throw new ApiError(404, 'Адаптация не найдена');

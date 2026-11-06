@@ -9,6 +9,7 @@ const TABS = [
   { href: '/admin/payments', label: 'Платежи' },
   { href: '/admin/marketing', label: 'Маркетинг' },
   { href: '/admin/integrations', label: 'Интеграции' },
+  { href: '/admin/ai', label: 'ИИ' },
 ];
 
 /** Вкладки админки. На узких экранах — горизонтальная прокрутка внутри панели, без переполнения страницы. */

@@ -6,6 +6,7 @@ import { trackFirstAction } from '@/lib/partners/events';
 import { extractCompany, generateLetter } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { requirePro } from '@/lib/billing/entitlements';
 import { applyChanges } from '@/lib/changes';
 import { parseJson, type Change } from '@/lib/types';
 
@@ -14,6 +15,7 @@ const schema = z.object({ vacancyId: z.string(), style: z.enum(['professional', 
 
 export const POST = handler(async (req: Request) => {
   const user = await requireApiUser();
+  requirePro(user, 'letter');
   const { vacancyId, style } = schema.parse(await req.json().catch(() => ({})));
   const vacancy = await db.vacancy.findFirst({ where: { id: vacancyId, userId: user.id }, include: { adaptation: true } });
   if (!vacancy) throw new ApiError(404, 'Вакансия не найдена');

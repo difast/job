@@ -5,6 +5,9 @@ import InterviewClient from '@/components/InterviewClient';
 import { ChangeGoalButton } from '@/components/GoalContext';
 import { jobtooButtonState } from '@/lib/partners/state';
 import { latestResume } from '@/lib/context';
+import { isPro } from '@/lib/billing/entitlements';
+import { ProPaywall } from '@/components/ProUpsell';
+import { PageHeader } from '@/components/ui';
 
 const fmt = (d: Date) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'Europe/Moscow' });
 
@@ -12,6 +15,16 @@ const fmt = (d: Date) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 
 export default async function InterviewPage({ searchParams }: { searchParams: Promise<{ vacancy?: string }> }) {
   const user = await requirePageUser();
   const { vacancy } = await searchParams;
+  if (!isPro(user)) {
+    const tried = await db.practiceAttempt.count({ where: { userId: user.id } });
+    return (
+      <>
+        <PageHeader title="Собеседования" subtitle="Тренажёр вопросов под вашу профессию и конкретные вакансии." />
+        <ProPaywall title="Тренажёр собеседований — в тарифе Pro" text="Вопросы HR, руководителя и профессиональные — под вашу профессию и выбранную вакансию. Пишете ответ и получаете разбор: что раскрыто, чего не хватает и как ответить сильнее."
+          note={tried ? 'История ваших тренировок сохранена — она снова откроется с Pro.' : undefined} />
+      </>
+    );
+  }
   const [vacancies, agg, recent, resume] = await Promise.all([
     db.vacancy.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 30, select: { id: true, title: true, matchScore: true, analysis: true } }),
     db.practiceAttempt.aggregate({ where: { userId: user.id }, _count: { _all: true }, _avg: { score: true } }),

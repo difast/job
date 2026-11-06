@@ -1,6 +1,8 @@
 // Применение данных, полученных от партнёра: резюме (с анализом) и вакансия (с анализом соответствия).
 import { db } from '../db';
 import { analyzeResume, analyzeVacancy } from '../ai';
+import { setAiUser } from '../ai/usage';
+import { reserveQuota } from '../billing/entitlements';
 import { getProfessionContext } from '../profession';
 import { isLevel, type LevelKey } from '../types';
 import { PARTNER } from './config';
@@ -49,7 +51,10 @@ export async function applyImport(importId: string, userId: string): Promise<{ l
   if (!claimed.count) return { landing: '/dashboard', applied: false };
   try {
     let resumeId: string | null = null, resumeText: string | null = null, vacancyId: string | null = null;
+    setAiUser(userId);
+    // Данные из JobToo применяются всегда (переход не должен обрываться), но учитываются в месячном лимите Free
     if (p.resume) {
+      await reserveQuota(user, 'resume', { source: 'jobtoo', enforce: false });
       const analysis = await analyzeResume(p.resume.text, ctx);
       const r = await db.resume.create({ data: { userId, fileName: p.resume.fileName, text: p.resume.text, analysis: JSON.stringify(analysis), professionId: ctx.id, level: ctx.level } });
       resumeId = r.id; resumeText = r.text;
@@ -59,6 +64,7 @@ export async function applyImport(importId: string, userId: string): Promise<{ l
     }
     if (p.vacancy && resumeText && p.vacancy.description.trim().length >= 60) {
       const text = [p.vacancy.title, p.vacancy.company, p.vacancy.description].filter(Boolean).join('\n\n').slice(0, 20000);
+      await reserveQuota(user, 'vacancy', { source: 'jobtoo', enforce: false });
       const a = await analyzeVacancy(text, resumeText, ctx);
       const v = await db.vacancy.create({ data: { userId, title: (p.vacancy.title || a.title).slice(0, 120), text, analysis: JSON.stringify(a), matchScore: a.matchScore, resumeId } });
       vacancyId = v.id;

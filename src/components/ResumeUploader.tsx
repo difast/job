@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import Icon from './Icon';
 import { Alert, Button, Spinner, cx } from './ui';
+import { UpgradeAlert, isUpgrade } from './UpgradeAlert';
 import { useToast } from './Toast';
 import { request } from '@/lib/client';
 
@@ -23,16 +24,17 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState('');
+  const [upgrade, setUpgrade] = useState(false);
 
   async function upload(file: File) {
     const bad = checkFile(file);
     if (bad) { setError(bad); return; }
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setUpgrade(false);
     const fd = new FormData();
     fd.append('file', file);
     const r = await request('/api/resume', { method: 'POST', body: fd, timeoutMs: 120_000 });
     setBusy(false);
-    if (!r.ok) { setError(r.error); return; }
+    if (!r.ok) { setError(r.error); setUpgrade(isUpgrade(r)); return; }
     toast(variant === 'button' ? 'Новая версия резюме загружена и проанализирована' : 'Резюме загружено и проанализировано');
     if (redirect && window.location.pathname !== '/resume') router.push('/resume');
     router.refresh();
@@ -47,7 +49,7 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
       <div>
         {picker}
         <Button variant="secondary" className="w-full" onClick={() => input.current?.click()} disabled={busy}>{busy ? <><Spinner />Анализируем…</> : <><Icon name="upload" size={16} />{label}</>}</Button>
-        {error && <Alert className="mt-3 max-w-md">{error}</Alert>}
+        {error && (upgrade ? <UpgradeAlert className="mt-3 max-w-md" message={error} /> : <Alert className="mt-3 max-w-md">{error}</Alert>)}
       </div>
     );
   }
@@ -72,7 +74,7 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
           <p className="mt-2 text-[15px] text-ink-2">Загрузите резюме, чтобы получить персональный анализ и рекомендации.</p>
           <Button size="lg" className="mt-7" onClick={() => input.current?.click()}><Icon name="upload" size={17} />{label}</Button>
           <p className="mt-3 text-[13px] text-muted">PDF, DOCX или TXT до 5 МБ — можно перетащить файл сюда</p>
-          {error && <Alert className="mt-5 w-full text-left">{error}</Alert>}
+          {error && (upgrade ? <UpgradeAlert className="mt-5 w-full text-left" message={error} /> : <Alert className="mt-5 w-full text-left">{error}</Alert>)}
         </div>
       )}
     </div>

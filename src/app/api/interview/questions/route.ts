@@ -4,10 +4,12 @@ import { handler, json } from '@/lib/http';
 import { parseJson } from '@/lib/types';
 import { requireProfession } from '@/lib/context';
 import { z } from 'zod';
+import { requirePro } from '@/lib/billing/entitlements';
 
 // Банк вопросов: профессия → уровень → тип. Универсальные вопросы (professionId/level = null) подмешиваются всегда.
 export const GET = handler(async (req: Request) => {
   const user = await requireApiUser();
+  requirePro(user, 'interview');
   const p = await requireProfession(user);
   const type = z.enum(['hr', 'professional', 'manager']).parse(new URL(req.url).searchParams.get('type') ?? 'hr');
   const rows = await db.interviewQuestion.findMany({

@@ -8,6 +8,8 @@ import { PageHeader, ScoreRing, buttonClass, scoreTone } from '@/components/ui';
 import Icon from '@/components/Icon';
 import VacancyAnalysisView, { GROUPS } from '@/components/VacancyAnalysisView';
 import { AdaptButton, DeleteVacancyButton } from '@/components/VacancyActions';
+import { isPro } from '@/lib/billing/entitlements';
+import { ProBadge } from '@/components/ProUpsell';
 
 const summary = (n: number) => (n >= 75 ? 'Сильное совпадение — резюме почти готово к отклику.' : n >= 50 ? 'Хорошая база: адаптация резюме заметно повысит совпадение.' : 'Совпадение невысокое — оцените, насколько вакансия вам подходит.');
 
@@ -17,6 +19,7 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
   const v = await db.vacancy.findFirst({ where: { id, userId: user.id }, include: { adaptation: { select: { id: true } } } });
   if (!v) notFound();
   const a = parseJson<VacancyAnalysis>(v.analysis, null as unknown as VacancyAnalysis);
+  const pro = isPro(user);
   return (
     <>
       <PageHeader back={{ href: '/vacancies', label: 'Все вакансии' }} title={<span className="user-text">{v.title}</span>} subtitle={`Анализ от ${relativeDay(v.createdAt)} · сравнение с вашим резюме`} />
@@ -47,11 +50,27 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
                 );
               })}
             </ul>
-            <div className="mt-5"><AdaptButton id={v.id} hasAdaptation={!!v.adaptation} /></div>
-            <div className="mt-3 grid gap-1">
-              <Link href={`/cover-letter?vacancy=${v.id}&create=1`} className={buttonClass({ variant: 'ghost', className: 'w-full' })}><Icon name="mail" size={15} />Создать сопроводительное письмо</Link>
-              <Link href={`/interview?vacancy=${v.id}`} className={buttonClass({ variant: 'ghost', className: 'w-full' })} data-testid="interview-for-vacancy"><Icon name="mic" size={15} />Подготовиться к собеседованию</Link>
-            </div>
+            {pro ? (
+              <>
+                <div className="mt-5"><AdaptButton id={v.id} hasAdaptation={!!v.adaptation} /></div>
+                <div className="mt-3 grid gap-1">
+                  <Link href={`/cover-letter?vacancy=${v.id}&create=1`} className={buttonClass({ variant: 'ghost', className: 'w-full' })}><Icon name="mail" size={15} />Создать сопроводительное письмо</Link>
+                  <Link href={`/interview?vacancy=${v.id}`} className={buttonClass({ variant: 'ghost', className: 'w-full' })} data-testid="interview-for-vacancy"><Icon name="mic" size={15} />Подготовиться к собеседованию</Link>
+                </div>
+              </>
+            ) : (
+              <div className="mt-5" data-testid="vacancy-pro-actions">
+                <Link href="/billing" className={buttonClass({ size: 'lg', className: 'w-full' })}>Адаптировать резюме<ProBadge className="bg-white/15 text-milk" /></Link>
+                <div className="mt-3 grid gap-1">
+                  {([['mail', 'Сопроводительное письмо'], ['mic', 'Подготовка к собеседованию']] as const).map(([icon, label]) => (
+                    <Link key={label} href="/billing" className="flex h-10 min-w-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink">
+                      <Icon name={icon} size={15} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{label}</span><ProBadge className="shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-muted">Адаптация резюме, письма и тренажёр собеседований доступны в тарифе Pro.</p>
+              </div>
+            )}
           </section>
         </aside>
       </div>

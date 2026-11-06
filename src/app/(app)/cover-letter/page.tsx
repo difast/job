@@ -3,10 +3,22 @@ import { db } from '@/lib/db';
 import { EmptyState, LinkButton, PageHeader } from '@/components/ui';
 import CoverLetterClient from '@/components/CoverLetterClient';
 import type { LetterStyle } from '@/lib/types';
+import { isPro } from '@/lib/billing/entitlements';
+import { ProPaywall } from '@/components/ProUpsell';
 
 export default async function CoverLetterPage({ searchParams }: { searchParams: Promise<{ vacancy?: string; create?: string }> }) {
   const user = await requirePageUser();
   const { vacancy, create } = await searchParams;
+  if (!isPro(user)) {
+    const saved = await db.coverLetter.count({ where: { vacancy: { userId: user.id } } });
+    return (
+      <>
+        <PageHeader title="Сопроводительные письма" subtitle="Письмо под конкретную вакансию на основе вашего резюме — без выдуманных фактов." />
+        <ProPaywall title="Сопроводительные письма — в тарифе Pro" text="Clymly напишет письмо под выбранную вакансию в одном из трёх стилей: деловом, кратком или личном — опираясь на ваш реальный опыт."
+          note={saved ? 'Созданные письма сохранены — они снова откроются с Pro.' : undefined} />
+      </>
+    );
+  }
   const vacancies = await db.vacancy.findMany({
     where: { userId: user.id }, orderBy: { createdAt: 'desc' },
     include: { coverLetters: { orderBy: { createdAt: 'desc' }, take: 10 } },

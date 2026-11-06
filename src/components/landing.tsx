@@ -241,7 +241,7 @@ export function Pricing({ signedIn }: { signedIn: boolean }) {
           <div className="text-[13px] font-medium uppercase tracking-[0.1em] text-accent-600">Тарифы</div>
           <h2 id="pricing-h" className="font-display mt-4 text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[44px]">Начните бесплатно</h2>
         </div>
-        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Попробуйте инструменты Clymly без оплаты. Pro — на 1 или сразу на 3 месяца (так выгоднее). Автопродление включается, только если вы сами отметите «Запомнить данные карты».</p>
+        <p className="max-w-[420px] text-[15px] leading-relaxed text-ink-2">Бесплатно — анализ резюме и разбор вакансии. Адаптация резюме, письма и тренажёр собеседований — в Pro на 1 или сразу на 3 месяца (так выгоднее). Автопродление включается, только если вы сами отметите «Запомнить данные карты».</p>
       </div>
       <div className="mt-12 grid gap-7 lg:grid-cols-3 lg:gap-5">
         <article className="flex flex-col rounded-[28px] border border-line-strong bg-white p-7 sm:p-9" data-testid="pricing-free">

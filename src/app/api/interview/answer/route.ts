@@ -5,6 +5,7 @@ import { ApiError, handler, json } from '@/lib/http';
 import { trackFirstAction } from '@/lib/partners/events';
 import { evaluateAnswer } from '@/lib/ai';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { requirePro } from '@/lib/billing/entitlements';
 import { requireProfession } from '@/lib/context';
 import { parseJson, type AnswerFeedback, type VacancyAnalysis } from '@/lib/types';
 
@@ -17,6 +18,7 @@ const schema = z.object({
 
 export const POST = handler(async (req: Request) => {
   const user = await requireApiUser();
+  requirePro(user, 'interview');
   const { questionId, answer, vacancyId } = schema.parse(await req.json().catch(() => ({})));
   const q = await db.interviewQuestion.findUnique({ where: { id: questionId }, include: { vacancy: { select: { userId: true } } } });
   // Вопрос под чужую вакансию недоступен — как будто его нет

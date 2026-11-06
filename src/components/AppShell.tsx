@@ -9,12 +9,13 @@ import { LEVEL_SHORT, type LevelKey } from '@/lib/types';
 
 // Пять основных разделов — единственный способ навигации между ними (вверху на десктопе, внизу на мобильных).
 // label — полное название (широкий экран), mid — для 1024–1535 px, short — подпись в нижней мобильной панели.
-export const NAV: { href: string; label: string; mid: string; short: string; icon: IconName }[] = [
+// pro — раздел доступен только на тарифе Pro (на Free в меню рядом замок).
+export const NAV: { href: string; label: string; mid: string; short: string; icon: IconName; pro?: boolean }[] = [
   { href: '/dashboard', label: 'Главная', mid: 'Главная', short: 'Главная', icon: 'home' },
   { href: '/resume', label: 'Моё резюме', mid: 'Моё резюме', short: 'Резюме', icon: 'file' },
   { href: '/vacancies', label: 'Вакансии', mid: 'Вакансии', short: 'Вакансии', icon: 'briefcase' },
-  { href: '/cover-letter', label: 'Сопроводительные письма', mid: 'Письма', short: 'Письма', icon: 'mail' },
-  { href: '/interview', label: 'Собеседования', mid: 'Собеседования', short: 'Собеседования', icon: 'mic' },
+  { href: '/cover-letter', label: 'Сопроводительные письма', mid: 'Письма', short: 'Письма', icon: 'mail', pro: true },
+  { href: '/interview', label: 'Собеседования', mid: 'Собеседования', short: 'Собеседования', icon: 'mic', pro: true },
 ];
 
 interface Props { user: { name: string; email: string }; professionName: string; level: LevelKey; tier: 'free' | 'pro' }
@@ -75,7 +76,7 @@ function UserMenu({ user, tier }: Pick<Props, 'user' | 'tier'>) {
   );
 }
 
-export default function AppShell({ children, user, professionName, level, tier }: Props & { children: React.ReactNode }) {
+export default function AppShell({ children, user, professionName, level, tier, pro = true }: Props & { children: React.ReactNode; pro?: boolean }) {
   const path = usePathname();
   return (
     <div className="min-h-dvh">
@@ -93,6 +94,7 @@ export default function AppShell({ children, user, professionName, level, tier }
                 <Link key={n.href} href={n.href} aria-current={active ? 'page' : undefined}
                   className={cx('relative flex items-center whitespace-nowrap px-3 text-[14.5px] transition-colors xl:px-3.5', active ? 'font-medium text-milk' : 'text-milk/65 hover:text-milk')} data-testid={`nav-${n.href.slice(1)}`}>
                   <span className="2xl:hidden">{n.mid}</span><span className="hidden 2xl:inline">{n.label}</span>
+                  {n.pro && !pro && <><Icon name="lock" size={12} className="ml-1.5 opacity-70" /><span className="sr-only"> (в тарифе Pro)</span></>}
                   {active && <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t bg-accent-300" />}
                 </Link>
               );
@@ -116,7 +118,7 @@ export default function AppShell({ children, user, professionName, level, tier }
               <li key={n.href}>
                 <Link href={n.href} aria-current={active ? 'page' : undefined} aria-label={n.label} className={cx('relative flex h-[58px] flex-col items-center justify-center gap-1 px-0 text-[10px] font-medium leading-none tracking-[-0.01em] transition-colors min-[400px]:text-[10.5px]', active ? 'text-accent-600' : 'text-muted hover:text-ink')}>
                   {active && <span className="absolute inset-x-4 top-0 h-[3px] rounded-b bg-accent-600" />}
-                  <Icon name={n.icon} size={21} strokeWidth={active ? 1.9 : 1.6} /><span className="max-w-full truncate">{n.short}</span>
+                  <span className="relative"><Icon name={n.icon} size={21} strokeWidth={active ? 1.9 : 1.6} />{n.pro && !pro && <span className="absolute -right-2 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-accent-600 text-milk"><Icon name="lock" size={8} strokeWidth={2.4} /></span>}</span><span className="max-w-full truncate">{n.short}</span>
                 </Link>
               </li>
             );

@@ -19,7 +19,8 @@ export function createAnthropic(apiKey: string, model: string): AiProvider {
         const text = res.content.map((b) => (b.type === 'text' ? b.text : '')).join('').trim();
         if (res.stop_reason === 'max_tokens' && req.json) throw new AiError('bad_response', 'Anthropic: ответ обрезан по max_tokens');
         if (!text) throw new AiError('bad_response', 'Anthropic: пустой ответ');
-        return { text, finishReason: res.stop_reason ?? null, model: res.model };
+        const usage = { prompt: res.usage?.input_tokens ?? 0, completion: res.usage?.output_tokens ?? 0, total: (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0) };
+        return { text, finishReason: res.stop_reason ?? null, model: res.model, usage };
       } catch (e) {
         if (e instanceof AiError) throw e;
         const status = (e as { status?: number }).status;

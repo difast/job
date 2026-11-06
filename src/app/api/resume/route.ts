@@ -5,6 +5,7 @@ import { extractResumeText, MAX_FILE_BYTES } from '@/lib/extract';
 import { analyzeResume } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { reserveQuota } from '@/lib/billing/entitlements';
 
 export const maxDuration = 60;
 
@@ -21,11 +22,14 @@ export const POST = handler(async (req: Request) => {
   const same = await db.resume.findFirst({ where: { userId: user.id, text, fileName: file.name, professionId: p.id, level: p.level, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } }, orderBy: { createdAt: 'desc' } });
   if (same) return json({ id: same.id, analysis: JSON.parse(same.analysis), duplicate: true });
   aiRateLimit(user.id);
-  const analysis = await analyzeResume(text, p);
-  const resume = await db.resume.create({
-    data: { userId: user.id, fileName: file.name, text, analysis: JSON.stringify(analysis), professionId: p.id, level: p.level },
-  });
-  return json({ id: resume.id, analysis });
+  const release = await reserveQuota(user, 'resume');
+  try {
+    const analysis = await analyzeResume(text, p);
+    const resume = await db.resume.create({
+      data: { userId: user.id, fileName: file.name, text, analysis: JSON.stringify(analysis), professionId: p.id, level: p.level },
+    });
+    return json({ id: resume.id, analysis });
+  } catch (e) { await release(); throw e; }
 });
 
 // Пересчёт анализа под текущую профессию/уровень
@@ -34,9 +38,12 @@ export const PUT = handler(async () => {
   const p = await requireProfession(user);
   const resume = await requireResume(user.id);
   aiRateLimit(user.id);
-  const analysis = await analyzeResume(resume.text, p);
-  await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: p.id, level: p.level, analyzedAt: new Date() } });
-  return json({ id: resume.id, analysis });
+  const release = await reserveQuota(user, 'resume');
+  try {
+    const analysis = await analyzeResume(resume.text, p);
+    await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: p.id, level: p.level, analyzedAt: new Date() } });
+    return json({ id: resume.id, analysis });
+  } catch (e) { await release(); throw e; }
 });
 
 export const DELETE = handler(async () => {

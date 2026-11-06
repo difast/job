@@ -27,6 +27,8 @@ export async function deleteAccount(userId: string) {
     db.partnerLoginCode.deleteMany({ where: { userId } }),
     db.partnerHandoff.updateMany({ where: { userId }, data: { userId: null, externalUserId: null } }),
     db.integrationEvent.updateMany({ where: { userId }, data: { userId: null, partnerUserId: null } }),
+    db.featureUse.deleteMany({ where: { userId } }),
+    db.aiCall.updateMany({ where: { userId }, data: { userId: null } }), // расход токенов остаётся в статистике без привязки
     db.user.update({
       where: { id: userId },
       data: {

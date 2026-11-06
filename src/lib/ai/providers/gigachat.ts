@@ -18,7 +18,9 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { rootCertificates } from 'node:tls';
 import { AiError } from '../errors';
-import type { AiProvider, ChatRequest, ChatResult } from './types';
+import type { AiProvider, ChatRequest, ChatResult, Usage } from './types';
+
+const addUsage = (a: Usage | undefined, b: Usage): Usage => ({ prompt: (a?.prompt ?? 0) + b.prompt, completion: (a?.completion ?? 0) + b.completion, total: (a?.total ?? 0) + b.total });
 
 /** Сертификаты Минцифры из репозитория (публичные, с gosuslugi.ru/crt). */
 export const BUNDLED_CA = path.join(process.cwd(), 'assets', 'certs', 'russian-trusted-ca.pem');
@@ -168,7 +170,7 @@ export function createGigaChat(c: GigaChatConfig): AiProvider {
         stream: false,
         ...(c.structured && req.jsonSchema ? { response_format: { type: 'json_schema', schema: req.jsonSchema } } : {}),
       });
-      let attempt = 0; let reauthorized = false; let filtered = false;
+      let attempt = 0; let reauthorized = false; let filtered = false; let spent: Usage | undefined;
       for (;;) {
         const left = deadline - Date.now();
         if (left < 2_000) throw new AiError('unavailable', 'GigaChat: исчерпано время на запрос');
@@ -211,9 +213,13 @@ export function createGigaChat(c: GigaChatConfig): AiProvider {
         if (r!.status === 404) throw new AiError('config', `GigaChat 404: модель ${c.model} или адрес ${c.apiUrl} не найдены — проверьте GIGACHAT_MODEL и GIGACHAT_API_URL`);
         if (r!.status === 413 || r!.status === 422) throw new AiError('refused', `GigaChat ${r!.status}: запрос отклонён ${providerMessage(r!.body)}`.trim());
         if (r!.status !== 200) throw new AiError('unavailable', `GigaChat HTTP ${r!.status}`);
-        try { return parseCompletion(r!.body, !!req.json); } catch (e) {
+        try {
+          const res = parseCompletion(r!.body, !!req.json);
+          return spent ? { ...res, usage: addUsage(res.usage, spent) } : res;
+        } catch (e) {
           // Фильтр провайдера срабатывает нестабильно на тот же запрос: одна повторная попытка за вызов
-          if (e instanceof AiError && e.kind === 'refused' && !filtered && Date.now() + 2_000 < deadline) { filtered = true; continue; }
+          if (e instanceof AiError && e.kind === 'refused' && !filtered && Date.now() + 2_000 < deadline) { filtered = true; spent = e.usage; continue; }
+          if (e instanceof AiError && spent) e.usage = addUsage(e.usage, spent);
           throw e;
         }
       }
@@ -222,13 +228,16 @@ export function createGigaChat(c: GigaChatConfig): AiProvider {
 }
 
 export function parseCompletion(raw: string, json: boolean): ChatResult {
-  let j: { choices?: { message?: { content?: unknown }; finish_reason?: unknown }[]; model?: unknown };
+  let j: { choices?: { message?: { content?: unknown }; finish_reason?: unknown }[]; model?: unknown; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } };
   try { j = JSON.parse(raw); } catch { throw new AiError('bad_response', 'GigaChat: ответ не JSON'); }
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : 0);
+  const usage = { prompt: n(j.usage?.prompt_tokens), completion: n(j.usage?.completion_tokens), total: n(j.usage?.total_tokens) || n(j.usage?.prompt_tokens) + n(j.usage?.completion_tokens) };
+  const fail = (kind: 'refused' | 'bad_response', msg: string) => { const e = new AiError(kind, msg); e.usage = usage; return e; };
   const ch = Array.isArray(j.choices) ? j.choices[0] : undefined;
   const text = typeof ch?.message?.content === 'string' ? ch.message.content.trim() : '';
   const finish = typeof ch?.finish_reason === 'string' ? ch.finish_reason : null;
-  if (finish === 'blacklist') throw new AiError('refused', 'GigaChat: ответ заблокирован фильтром провайдера (blacklist)');
-  if (finish === 'length' && json) throw new AiError('bad_response', 'GigaChat: ответ обрезан по max_tokens');
-  if (!text) throw new AiError('bad_response', 'GigaChat: пустой ответ');
-  return { text, finishReason: finish, model: typeof j.model === 'string' ? j.model : null };
+  if (finish === 'blacklist') throw fail('refused', 'GigaChat: ответ заблокирован фильтром провайдера (blacklist)');
+  if (finish === 'length' && json) throw fail('bad_response', 'GigaChat: ответ обрезан по max_tokens');
+  if (!text) throw fail('bad_response', 'GigaChat: пустой ответ');
+  return { text, finishReason: finish, model: typeof j.model === 'string' ? j.model : null, usage };
 }

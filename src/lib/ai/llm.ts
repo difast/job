@@ -4,6 +4,8 @@ import { z, type ZodType } from 'zod';
 import { AiError } from './errors';
 import { getAiProvider } from './provider';
 import { JSON_ONLY } from './prompts';
+import { recordAiCall } from './usage';
+import type { AiProvider, ChatRequest, ChatResult } from './providers/types';
 
 export { llmEnabled } from './provider';
 
@@ -27,6 +29,19 @@ function log(task: string, e: AiError) {
 
 export interface CallOptions { maxTokens?: number; temperature?: number }
 
+/** Запрос к провайдеру с записью расхода токенов (и при ошибке — с её типом). */
+async function chat(provider: AiProvider, task: string, req: ChatRequest): Promise<ChatResult> {
+  const t0 = Date.now();
+  try {
+    const r = await provider.chat(req);
+    recordAiCall({ feature: task, provider: provider.name, model: r.model ?? provider.model, usage: r.usage, ok: true, durationMs: Date.now() - t0 });
+    return r;
+  } catch (e) {
+    recordAiCall({ feature: task, provider: provider.name, model: provider.model, usage: e instanceof AiError ? e.usage : undefined, ok: false, errorKind: e instanceof AiError ? e.kind : 'unknown', durationMs: Date.now() - t0 });
+    throw e;
+  }
+}
+
 /** JSON-ответ по схеме. Одна повторная попытка с описанием ошибки формата. */
 export async function callJson<T>(task: string, prompt: { system: string; user: string }, schema: ZodType<T>, opts: CallOptions = {}): Promise<T> {
   try {
@@ -34,9 +49,9 @@ export async function callJson<T>(task: string, prompt: { system: string; user: 
     let jsonSchema: Record<string, unknown> | undefined;
     try { jsonSchema = z.toJSONSchema(schema, { unrepresentable: 'any' }) as Record<string, unknown>; } catch { jsonSchema = undefined; }
     const system = `${prompt.system}\n\n${JSON_ONLY}`;
-    const first = await provider.chat({ system, user: prompt.user, json: true, jsonSchema, maxTokens: opts.maxTokens ?? 3000, temperature: opts.temperature });
+    const first = await chat(provider, task, { system, user: prompt.user, json: true, jsonSchema, maxTokens: opts.maxTokens ?? 3000, temperature: opts.temperature });
     try { return schema.parse(extractJson(first.text)); } catch (e) {
-      const second = await provider.chat({
+      const second = await chat(provider, task, {
         system, json: true, jsonSchema, maxTokens: opts.maxTokens ?? 3000, temperature: 0.1,
         history: [{ role: 'user', content: prompt.user }, { role: 'assistant', content: first.text.slice(0, 12_000) }],
         user: `Ответ не прошёл проверку формата: ${issues(e)}. Верни исправленный ответ — один JSON-объект строго по заданному формату, без пояснений. Содержание не меняй, если оно не нарушает правила.`,
@@ -55,10 +70,10 @@ export async function callJson<T>(task: string, prompt: { system: string; user: 
 export async function callText(task: string, prompt: { system: string; user: string }, check: (t: string) => string | null, opts: CallOptions = {}): Promise<string> {
   try {
     const provider = getAiProvider();
-    const first = (await provider.chat({ system: prompt.system, user: prompt.user, maxTokens: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.6 })).text;
+    const first = (await chat(provider, task, { system: prompt.system, user: prompt.user, maxTokens: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.6 })).text;
     const problem = check(first);
     if (!problem) return first;
-    const second = (await provider.chat({
+    const second = (await chat(provider, task, {
       system: prompt.system, maxTokens: opts.maxTokens ?? 1500, temperature: 0.4,
       history: [{ role: 'user', content: prompt.user }, { role: 'assistant', content: first.slice(0, 8_000) }],
       user: `Текст нарушает правила: ${problem}. Перепиши его, исправив это. Используй только сведения из резюме и вакансии.`,

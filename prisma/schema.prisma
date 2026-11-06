@@ -118,6 +118,7 @@ model User {
   partnerLinks    PartnerLink[]
   emailTokens     EmailToken[]
   partnerConsents PartnerConsent[]
+  featureUses     FeatureUse[]
 }
 
 // Одноразовые ссылки и коды из писем (подтверждение e-mail, восстановление пароля, коды подтверждения). Храним только sha256.
@@ -440,4 +441,39 @@ model PartnerEventOutbox {
   createdAt DateTime  @default(now())
 
   @@index([sentAt, nextAt])
+}
+
+// ───────── Тарифные лимиты и расход ИИ ─────────
+
+// Использование функции, ограниченной на бесплатном тарифе (анализ резюме, разбор вакансии): по нему считается
+// месячный лимит Free. Запись создаётся до обращения к ИИ (резерв) и удаляется, если операция не удалась.
+model FeatureUse {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   String // resume | vacancy
+  source    String   @default("user") // user | jobtoo | profile
+  createdAt DateTime @default(now())
+
+  @@index([userId, feature, createdAt])
+}
+
+// Один запрос к ИИ-провайдеру (включая повтор для исправления формата): токены для админки.
+// Без текстов запросов и ответов. userId обнуляется при удалении аккаунта.
+model AiCall {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  userId           String?
+  feature          String // analyzeResume | analyzeVacancy | adaptResume | letter | interviewQuestions | evaluateAnswer
+  provider         String
+  model            String?
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  ok               Boolean  @default(true)
+  errorKind        String?
+  durationMs       Int?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }

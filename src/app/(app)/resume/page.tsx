@@ -10,15 +10,18 @@ import { jobtooButtonState } from '@/lib/partners/state';
 import ResumeUploader from '@/components/ResumeUploader';
 import { ResumeAnalysisView } from '@/components/ResumeAnalysisView';
 import { DeleteResumeButton, ReanalyzeButton } from '@/components/ResumeActions';
+import { entitlements } from '@/lib/billing/entitlements';
+import { ProBanner, QuotaNote } from '@/components/ProUpsell';
 
 export default async function ResumePage() {
   const user = await requirePageUser();
-  const resume = await latestResume(user.id);
+  const [resume, ent] = await Promise.all([latestResume(user.id), entitlements(user)]);
+  const quota = <QuotaNote q={ent.resume} what="анализ резюме" resetsAt={ent.resetsAt} testid="quota-resume" />;
   if (!resume) {
     return (
       <>
         <PageHeader title="Моё резюме" subtitle="Загрузите резюме — оценим структуру, опыт, достижения, навыки, соответствие профессии и читаемость для ATS." />
-        <div className="max-w-3xl"><ResumeUploader goalLabel={user.profession!.name} /></div>
+        <div className="max-w-3xl space-y-3"><ResumeUploader goalLabel={user.profession!.name} />{quota}</div>
       </>
     );
   }
@@ -47,12 +50,15 @@ export default async function ResumePage() {
             <div className="mt-4">
               <ResumeUploader variant="button" label="Загрузить новую версию" redirect={false} />
               <p className="mt-2 text-xs leading-relaxed text-muted">Новая версия заменит текущую и будет сразу проанализирована.</p>
+              {!ent.pro && <div className="mt-2">{quota}</div>}
             </div>
             <div className="mt-4 border-t border-line pt-3"><DeleteResumeButton /></div>
           </section>
           {jt && <JobTooCard placement="resume" state={jt} />}
         </aside>
       </div>
+
+      {!ent.pro && <ProBanner className="mt-10" title="Резюме готово — теперь адаптируйте его под вакансии" text="В Pro: правки резюме под каждую вакансию, сопроводительные письма, тренажёр собеседований и анализ без ограничений." />}
 
       <details className="group mt-10 border-t border-line pt-6">
         <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink"><Icon name="chevron-right" size={15} className="transition-transform group-open:rotate-90" />Извлечённый текст резюме</summary>

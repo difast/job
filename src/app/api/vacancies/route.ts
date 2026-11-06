@@ -6,6 +6,7 @@ import { trackFirstAction } from '@/lib/partners/events';
 import { analyzeVacancy } from '@/lib/ai';
 import { requireProfession, requireResume } from '@/lib/context';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { reserveQuota } from '@/lib/billing/entitlements';
 
 export const maxDuration = 60;
 const schema = z.object({ text: z.string().trim().min(60, 'Вставьте полное описание вакансии (минимум 60 символов)').max(20000) });
@@ -19,10 +20,14 @@ export const POST = handler(async (req: Request) => {
   const same = await db.vacancy.findFirst({ where: { userId: user.id, text, resumeId: resume.id, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } }, orderBy: { createdAt: 'desc' } });
   if (same) return json({ id: same.id, duplicate: true });
   aiRateLimit(user.id);
-  const analysis = await analyzeVacancy(text, resume.text, p);
-  const v = await db.vacancy.create({
-    data: { userId: user.id, title: analysis.title.slice(0, 120), text, analysis: JSON.stringify(analysis), matchScore: analysis.matchScore, resumeId: resume.id },
-  });
+  const release = await reserveQuota(user, 'vacancy');
+  let v;
+  try {
+    const analysis = await analyzeVacancy(text, resume.text, p);
+    v = await db.vacancy.create({
+      data: { userId: user.id, title: analysis.title.slice(0, 120), text, analysis: JSON.stringify(analysis), matchScore: analysis.matchScore, resumeId: resume.id },
+    });
+  } catch (e) { await release(); throw e; }
   void trackFirstAction(user.id);
   return json({ id: v.id });
 });

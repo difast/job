@@ -26,6 +26,8 @@ const USER_MESSAGE: Record<AiErrorKind, string> = {
 const STATUS: Record<AiErrorKind, number> = { config: 503, auth: 503, forbidden: 503, rate_limit: 429, quota: 503, unavailable: 503, bad_response: 502, refused: 422 };
 
 export class AiError extends ApiError {
+  /** Токены, потраченные на ответ, который не прошёл проверку (фильтр, обрезка) — для учёта в админке. */
+  usage?: { prompt: number; completion: number; total: number };
   constructor(public kind: AiErrorKind, public diagnostic: string) {
     super(STATUS[kind], USER_MESSAGE[kind]);
     this.name = 'AiError';

@@ -9,6 +9,7 @@ import { ApiError, handler, json } from '@/lib/http';
 import { LEVELS } from '@/lib/types';
 import { analyzeResume } from '@/lib/ai';
 import { aiRateLimit } from '@/lib/ai/limits';
+import { reserveQuota } from '@/lib/billing/entitlements';
 import { getProfessionContext } from '@/lib/profession';
 import { latestResume } from '@/lib/context';
 import { applyPendingImports } from '@/lib/partners/imports';
@@ -31,9 +32,13 @@ export const PATCH = handler(async (req: Request) => {
       const resume = await latestResume(user.id);
       const ctx = resume && (await getProfessionContext(updated.professionId, updated.level as 'junior'));
       if (resume && ctx) {
-        aiRateLimit(user.id); // при превышении профессия сохраняется, пересчёт оценки пропускается
-        const analysis = await analyzeResume(resume.text, ctx);
-        await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: ctx.id, level: ctx.level, analyzedAt: new Date() } });
+        // При превышении лимита частоты или месячного лимита Free профессия сохраняется, пересчёт оценки пропускается
+        aiRateLimit(user.id);
+        const release = await reserveQuota(user, 'resume', { source: 'profile' });
+        try {
+          const analysis = await analyzeResume(resume.text, ctx);
+          await db.resume.update({ where: { id: resume.id }, data: { analysis: JSON.stringify(analysis), professionId: ctx.id, level: ctx.level, analyzedAt: new Date() } });
+        } catch (e) { await release(); throw e; }
       }
     } catch (e) { console.warn('[profile] resume re-analysis failed:', (e as Error).message); }
   }

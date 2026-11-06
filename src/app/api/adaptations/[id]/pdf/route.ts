@@ -3,12 +3,14 @@ import { requireApiUser } from '@/lib/auth';
 import { ApiError, handler } from '@/lib/http';
 import { applyChanges } from '@/lib/changes';
 import { resumeToPdf } from '@/lib/pdf';
+import { requirePro } from '@/lib/billing/entitlements';
 import { parseJson, type Change } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
 export const GET = handler(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireApiUser();
+  requirePro(user, 'adapt');
   const { id } = await params;
   const a = await db.adaptation.findFirst({ where: { id, vacancy: { userId: user.id } }, include: { resume: true, vacancy: true } });
   if (!a) throw new ApiError(404, 'Адаптация не найдена');

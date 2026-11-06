@@ -8,14 +8,17 @@ import Icon from '@/components/Icon';
 import VacancyForm from '@/components/VacancyForm';
 import { JobTooCard } from '@/components/JobTooButton';
 import { jobtooButtonState } from '@/lib/partners/state';
+import { entitlements } from '@/lib/billing/entitlements';
+import { ProBadge, ProBanner, QuotaNote } from '@/components/ProUpsell';
 
 const STEPS = ['Вставьте описание', 'Сравним с резюме', 'Адаптируем резюме'];
 
 export default async function VacanciesPage() {
   const user = await requirePageUser();
-  const [resume, vacancies] = await Promise.all([
+  const [resume, vacancies, ent] = await Promise.all([
     latestResume(user.id),
     db.vacancy.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, include: { adaptation: { select: { id: true } } } }),
+    entitlements(user),
   ]);
   const jt = resume ? await jobtooButtonState(user.id) : null;
   return (
@@ -26,12 +29,14 @@ export default async function VacanciesPage() {
           <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-[13px] text-ink-2" aria-label="Как это работает">
             {STEPS.map((s, i) => (
               <li key={s} className="flex items-center gap-2">
-                <span className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold', i === 0 ? 'bg-ink text-milk' : 'bg-stone text-ink-2')}>{i + 1}</span>{s}
+                <span className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold', i === 0 ? 'bg-ink text-milk' : 'bg-stone text-ink-2')}>{i + 1}</span>{s}{i === 2 && !ent.pro && <ProBadge />}
                 {i < STEPS.length - 1 && <Icon name="chevron-right" size={14} className="text-muted" />}
               </li>
             ))}
           </ol>
           <VacancyForm hasResume={!!resume} />
+          {!ent.pro && <QuotaNote q={ent.vacancy} what="разбор вакансии" resetsAt={ent.resetsAt} className="mt-3" testid="quota-vacancy" />}
+          {!ent.pro && <ProBanner className="mt-6" title="Откликаетесь на несколько вакансий?" text="В Pro — разбор вакансий без ограничений, адаптация резюме под каждую, сопроводительные письма и тренажёр собеседований." />}
         </div>
 
         <aside aria-labelledby="hist" className="space-y-4 lg:sticky lg:top-24 lg:self-start">

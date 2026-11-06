@@ -97,10 +97,11 @@ export function startMockGigaChat({ port = 4200 } = {}) {
         if (state.mode === '401') return send(401, { message: 'Token has expired' });
         if (state.mode === 'blacklist' || state.mode === 'blacklist-once') {
           if (state.mode === 'blacklist-once') state.mode = 'ok';
-          return send(200, { choices: [{ message: { role: 'assistant', content: 'Не люблю менять тему разговора, но вот сейчас тот самый случай.' }, finish_reason: 'blacklist', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion' });
+          return send(200, { choices: [{ message: { role: 'assistant', content: 'Не люблю менять тему разговора, но вот сейчас тот самый случай.' }, finish_reason: 'blacklist', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion', usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } });
         }
         const content = state.mode === 'malformed' ? 'Извините, вот мой ответ без JSON' : (() => { const r = reply(system, b.messages.length > 2 ? b.messages[1].content : user); return r.text ?? JSON.stringify(r); })();
-        return send(200, { choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion' });
+        const pt = Math.ceil(JSON.stringify(b.messages).length / 4), ct = Math.ceil(content.length / 4);
+        return send(200, { choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion', usage: { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct } });
       }
       send(404, { message: 'not found' });
     });

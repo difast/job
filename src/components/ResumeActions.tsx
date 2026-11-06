@@ -5,6 +5,7 @@ import Icon from './Icon';
 import { useConfirm } from './Confirm';
 import { useToast } from './Toast';
 import { Alert, Button, Spinner } from './ui';
+import { UpgradeAlert, isUpgrade } from './UpgradeAlert';
 import { request } from '@/lib/client';
 
 /** Повторный анализ под текущую цель: показывает ход выполнения и результат. */
@@ -13,17 +14,18 @@ export function ReanalyzeButton({ label = 'Обновить анализ', size 
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [upgrade, setUpgrade] = useState(false);
   async function run() {
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setUpgrade(false);
     const r = await request('/api/resume', { method: 'PUT', timeoutMs: 120_000 });
     setBusy(false);
-    if (!r.ok) { setError(r.error); return; }
+    if (!r.ok) { setError(r.error); setUpgrade(isUpgrade(r)); return; }
     toast('Анализ обновлён под текущую цель'); router.refresh();
   }
   return (
     <div>
       <Button size={size} className={className} disabled={busy} onClick={run}>{busy ? <><Spinner />Анализируем…</> : label}</Button>
-      {error && <Alert className="mt-3">{error} <button className="font-medium underline" onClick={run}>Повторить</button></Alert>}
+      {error && (upgrade ? <UpgradeAlert className="mt-3" message={error} /> : <Alert className="mt-3">{error} <button className="font-medium underline" onClick={run}>Повторить</button></Alert>)}
     </div>
   );
 }
