@@ -32,8 +32,9 @@
    * `GIGACHAT_AUTH_KEY` — ключ авторизации, без слова `Basic`;
    * `GIGACHAT_SCOPE` — `GIGACHAT_API_PERS` (физлица), `GIGACHAT_API_B2B` или `GIGACHAT_API_CORP`;
    * `GIGACHAT_MODEL` — `GigaChat-2-Pro` (по умолчанию), `GigaChat-2` или `GigaChat-2-Max`;
-   * `GIGACHAT_CA_CERT` — сертификаты Минцифры в формате PEM (корневой Russian Trusted Root CA и при необходимости
-     промежуточный): содержимое файлов целиком или путь к файлу. Без них Node.js не доверяет серверам GigaChat.
+   * `GIGACHAT_CA_CERT` — обычно не нужен: сертификаты Минцифры (Russian Trusted Root CA до 2032 г. и два выпускающих,
+     с gosuslugi.ru/crt) лежат в `assets/certs/russian-trusted-ca.pem` и подключаются по умолчанию. Переменная заменяет их
+     (путь к PEM или содержимое) — например, когда Минцифры выпустит новые. Без них Node.js не доверяет серверам GigaChat.
 3. Необязательно: `GIGACHAT_API_URL` (по умолчанию `https://api.giga.chat/v1`; прежний `https://gigachat.devices.sberbank.ru/api/v1`),
    `GIGACHAT_AUTH_URL`, `GIGACHAT_TIMEOUT_MS` (45000), `GIGACHAT_MAX_RETRIES` (2), `GIGACHAT_STRUCTURED_OUTPUT=1` (бета, JSON-схема ответа).
 4. После деплоя в логе: `[ai] провайдер gigachat, модель …`; `GET /api/health` → `"ai": {"provider": "gigachat", "configured": true}`.

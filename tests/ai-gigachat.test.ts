@@ -48,6 +48,7 @@ test('конфигурация: без ключа — понятная диаг�
   assert.match((gigaChatConfig({ GIGACHAT_AUTH_KEY: KEY, GIGACHAT_SCOPE: 'WRONG' }) as { problem: string }).problem, /GIGACHAT_SCOPE/);
   assert.match((gigaChatConfig({ GIGACHAT_AUTH_KEY: KEY, GIGACHAT_CA_CERT: '/nonexistent.pem' }) as { problem: string }).problem, /GIGACHAT_CA_CERT/);
   const ok = gigaChatConfig({ GIGACHAT_AUTH_KEY: KEY });
+  assert.ok(ok.ok && ok.config.ca?.at(-1)?.includes('-----BEGIN CERTIFICATE-----') && (ok.config.ca?.at(-1)?.match(/BEGIN CERTIFICATE/g) ?? []).length === 3, 'сертификаты Минцифры из assets/certs подключаются по умолчанию');
   assert.ok(ok.ok && ok.config.apiUrl === 'https://api.giga.chat/v1' && ok.config.authUrl === 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth' && ok.config.model === 'GigaChat-2-Pro' && ok.config.scope === 'GIGACHAT_API_PERS');
 });
 

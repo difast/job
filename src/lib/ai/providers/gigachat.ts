@@ -8,15 +8,20 @@
 // Генерация: POST https://api.giga.chat/v1/chat/completions (целевой адрес с 17.07.2026; прежний
 //   https://gigachat.devices.sberbank.ru/api/v1 остаётся для старых подключений — задаётся GIGACHAT_API_URL),
 //   Authorization: Bearer <access_token>, тело { model, messages: [{ role: system|user|assistant, content }], ... }.
-// Сертификаты: серверы GigaChat используют корневой сертификат Минцифры (Russian Trusted Root CA) — путь к нему
-//   задаётся в GIGACHAT_CA_CERT (или NODE_EXTRA_CA_CERTS). Проверка сертификата никогда не отключается.
+// Сертификаты: серверы GigaChat используют корневой сертификат Минцифры (Russian Trusted Root CA). Он и выпускающие
+//   сертификаты лежат в assets/certs/russian-trusted-ca.pem и подключаются по умолчанию; GIGACHAT_CA_CERT (путь или
+//   содержимое PEM) их заменяет. Проверка сертификата никогда не отключается.
 import { randomUUID, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { rootCertificates } from 'node:tls';
 import { AiError } from '../errors';
 import type { AiProvider, ChatRequest, ChatResult } from './types';
+
+/** Сертификаты Минцифры из репозитория (публичные, с gosuslugi.ru/crt). */
+export const BUNDLED_CA = path.join(process.cwd(), 'assets', 'certs', 'russian-trusted-ca.pem');
 
 export const GIGACHAT_DEFAULTS = {
   authUrl: 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth',
@@ -46,7 +51,7 @@ export function gigaChatConfig(env: Env = process.env): { ok: true; config: Giga
   const scope = (env.GIGACHAT_SCOPE ?? '').trim() || GIGACHAT_DEFAULTS.scope;
   if (!SCOPES.includes(scope)) return { ok: false, problem: `GIGACHAT_SCOPE должен быть одним из: ${SCOPES.join(', ')}` };
   let ca: string[] | null = null;
-  const caRaw = (env.GIGACHAT_CA_CERT ?? '').trim();
+  const caRaw = (env.GIGACHAT_CA_CERT ?? '').trim() || BUNDLED_CA;
   if (caRaw) {
     let pem = caRaw.replace(/\\n/g, '\n');
     if (!pem.includes('-----BEGIN CERTIFICATE-----')) {
@@ -89,7 +94,7 @@ function send(url: string, opts: { method: string; headers: Record<string, strin
     });
     req.setTimeout(opts.timeoutMs, () => req.destroy(new NetworkError(`таймаут ${opts.timeoutMs} мс`)));
     req.on('error', (e) => reject(e instanceof NetworkError ? e : new NetworkError(
-      /certificate|self.signed|UNABLE_TO_VERIFY|CERT_/i.test(e.message) ? 'TLS: сертификат сервера не доверен — укажите сертификат Минцифры в GIGACHAT_CA_CERT' : e.message)));
+      /certificate|self.signed|UNABLE_TO_VERIFY|CERT_/i.test(e.message) ? 'TLS: сертификат сервера не доверен — проверьте сертификаты Минцифры (assets/certs или GIGACHAT_CA_CERT)' : e.message)));
     req.end(opts.body);
   });
 }
