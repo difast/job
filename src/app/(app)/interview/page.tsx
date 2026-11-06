@@ -1,4 +1,5 @@
 import { requirePageUser } from '@/lib/auth';
+import { professionName } from '@/lib/profession';
 import { db } from '@/lib/db';
 import { LEVEL_SHORT, parseJson, type LevelKey, type VacancyAnalysis } from '@/lib/types';
 import InterviewClient from '@/components/InterviewClient';
@@ -43,7 +44,7 @@ export default async function InterviewPage({ searchParams }: { searchParams: Pr
       <header className="mx-auto mb-8 max-w-[820px]">
         <h1 className="text-[28px] font-semibold leading-[1.15] tracking-[-0.025em] sm:text-[32px]">Собеседования</h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-2">
-          <span>Тренажёр вопросов для <b className="font-medium text-ink">{user.profession!.name} · {LEVEL_SHORT[user.level as LevelKey]}</b></span>
+          <span>Тренажёр вопросов для <b className="font-medium text-ink">{professionName(user)} · {LEVEL_SHORT[user.level as LevelKey]}</b></span>
           <ChangeGoalButton variant="ghost" />
         </div>
       </header>

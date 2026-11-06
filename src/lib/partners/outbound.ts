@@ -1,4 +1,5 @@
 // Передача профиля и резюме из Clymly в JobToo (кнопка «Перейти в JobToo»).
+import { professionName } from '../profession';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db';
 import { ApiError } from '../http';
@@ -42,7 +43,7 @@ export async function sendToJobToo(user: U, opts: { placement: string; vacancyId
   const payload = {
     source: 'clymly', clymly_user_id: user.id, jobtoo_user_id: link?.externalUserId ?? null,
     email: user.email, email_verified: !!user.emailVerifiedAt, // true — пользователь подтвердил почту по ссылке из письма Clymly
-    name: user.name, target_position: profession.name, target_position_id: profession.id, experience_level: user.level,
+    name: user.name, target_position: professionName({ ...user, profession }), target_position_id: profession.id, experience_level: user.level,
     resume_id: resume.id, resume_text: resume.text.slice(0, 30_000), resume_adapted_text: adapted?.slice(0, 30_000) ?? null,
     skills_detected: skills, consent: { accepted_at: consent.acceptedAt.toISOString(), version: consent.version },
     utm: { placement: opts.placement, platform: opts.platform ?? 'web' },

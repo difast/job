@@ -99,11 +99,18 @@ test('оценка ответа: сильный > слабый', () => {
   assert.equal(good.missed.length, 0);
 });
 
-test('справочники: 38 профессий, у каждой данные и 4 уровня; вопросы валидны', () => {
+const ORIGINAL = ['product-manager', 'project-manager', 'business-analyst', 'financial-analyst', 'financial-manager', 'operations-manager', 'sales-director', 'sales-manager', 'business-development-manager', 'procurement-manager',
+  'marketer', 'internet-marketer', 'smm-manager', 'brand-manager', 'pr-manager', 'content-manager', 'software-developer', 'system-analyst', 'data-analyst', 'data-scientist', 'ux-ui-designer', 'devops-engineer', 'qa-engineer',
+  'system-administrator', 'accountant', 'auditor', 'economist', 'lawyer', 'financial-controller', 'hr-manager', 'recruiter', 'architect', 'engineer', 'logistician', 'doctor', 'pharmacist', 'teacher', 'translator'];
+
+test('справочники: исходные 38 профессий и 5 групп на месте, новые — с данными и 4 уровнями; вопросы валидны', () => {
   const all = categories.flatMap((c) => c.professions);
-  assert.equal(all.length, 38);
-  assert.equal(new Set(all.map((p) => p.id)).size, 38);
+  assert.equal(new Set(all.map((p) => p.id)).size, all.length, 'id профессий уникальны');
+  assert.ok(all.length >= 160, `профессий: ${all.length}`);
+  for (const id of ORIGINAL) assert.ok(all.some((p) => p.id === id), `исходная профессия ${id}`);
+  assert.deepEqual(categories.slice(0, 5).map((c) => c.id), ['management', 'marketing', 'it', 'finance-law', 'other']);
   for (const p of all) {
+    if (p.id === 'custom') continue; // «Другая профессия»: навыки и требования определяются по названию пользователя
     assert.ok(p.description && p.skills.length >= 5 && p.requirements.length >= 3, p.id);
     for (const l of ['junior', 'middle', 'senior', 'lead'] as const) assert.ok(p.levels[l], `${p.id}:${l}`);
   }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { professionName } from '@/lib/profession';
 import { requirePageUser } from '@/lib/auth';
 import { latestResume } from '@/lib/context';
 import { db } from '@/lib/db';
@@ -36,7 +37,7 @@ export default async function Dashboard() {
     db.vacancy.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, include: { adaptation: { select: { id: true } }, _count: { select: { coverLetters: true } } } }),
   ]);
   const a = resume ? parseJson<ResumeAnalysis>(resume.analysis, null as unknown as ResumeAnalysis) : null;
-  const profession = user.profession!.name;
+  const profession = professionName(user);
   const { tier, until } = currentTier(user);
   const pro = isPro(user);
 

@@ -10,7 +10,7 @@ import { Alert, Button, Spinner } from './ui';
 import { useToast } from './Toast';
 import type { LevelKey } from '@/lib/types';
 
-interface Goal { professionId: string; professionName: string; level: LevelKey }
+interface Goal { professionId: string; professionName: string; level: LevelKey; professionTitle?: string | null }
 const Ctx = createContext<{ openGoal: () => void } | null>(null);
 export const useGoal = () => useContext(Ctx)!;
 
@@ -20,17 +20,18 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [prof, setProf] = useState(goal.professionId);
+  const [title, setTitle] = useState(goal.professionTitle ?? '');
   const [lvl, setLvl] = useState<LevelKey>(goal.level);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const close = useCallback(() => setOpen(false), []);
-  const openGoal = useCallback(() => { setProf(goal.professionId); setLvl(goal.level); setError(''); setOpen(true); }, [goal]);
-  const changed = prof !== goal.professionId || lvl !== goal.level;
+  const openGoal = useCallback(() => { setProf(goal.professionId); setTitle(goal.professionTitle ?? ''); setLvl(goal.level); setError(''); setOpen(true); }, [goal]);
+  const changed = prof !== goal.professionId || lvl !== goal.level || (prof === 'custom' && title !== (goal.professionTitle ?? ''));
 
   async function save() {
     if (busy) return;
     setBusy(true); setError('');
-    const r = await request('/api/profile', { method: 'PATCH', json: { professionId: prof, level: lvl }, timeoutMs: 120_000 });
+    const r = await request('/api/profile', { method: 'PATCH', json: { professionId: prof, level: lvl, ...(prof === 'custom' ? { professionTitle: title } : {}) }, timeoutMs: 120_000 });
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setOpen(false); router.refresh();
@@ -42,7 +43,7 @@ export function GoalProvider({ goal, children }: { goal: Goal; children: React.R
       {children}
       <Modal open={open} onClose={close} title="Ваша цель" description="От цели зависят оценка резюме, требования и вопросы для собеседования."
         footer={<><Button variant="ghost" onClick={close} disabled={busy}>Отмена</Button><Button onClick={save} disabled={busy || !changed}>{busy && <Spinner />}{busy ? 'Обновляем рекомендации…' : 'Сохранить'}</Button></>}>
-        <ProfessionPicker value={prof} onChange={(id) => setProf(id)} maxHeight="38dvh" />
+        <ProfessionPicker value={prof} onChange={(id, n) => { setProf(id); if (id === 'custom') setTitle(n); }} maxHeight="38dvh" customTitle={goal.professionTitle ?? ''} />
         <h3 className="mb-3 mt-7 text-sm font-medium">Уровень</h3>
         <LevelPicker value={lvl} onChange={setLvl} />
         {changed && <Alert tone="info" className="mt-5">Резюме будет заново оценено под новую цель, а вопросы для собеседования обновятся.</Alert>}

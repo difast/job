@@ -13,24 +13,32 @@ import { reserveQuota } from '@/lib/billing/entitlements';
 import { getProfessionContext } from '@/lib/profession';
 import { latestResume } from '@/lib/context';
 import { applyPendingImports } from '@/lib/partners/imports';
+import { CUSTOM_PROFESSION_ID } from '@/lib/profession';
 
 const schema = z.object({
   professionId: z.string().min(1).optional(),
   level: z.enum(LEVELS as [string, ...string[]]).optional(),
   name: z.string().trim().min(1).max(80).optional(),
+  // Своё название профессии — только вместе с professionId = custom («Моей профессии нет в списке»)
+  professionTitle: z.string().trim().max(80).optional(),
 });
 
 export const PATCH = handler(async (req: Request) => {
   const user = await requireApiUser();
-  const data = schema.parse(await req.json().catch(() => ({})));
+  const { professionTitle, ...data } = schema.parse(await req.json().catch(() => ({})));
   if (data.professionId && !(await db.profession.findFirst({ where: { id: data.professionId, active: true } }))) throw new ApiError(404, 'Профессия не найдена');
-  const updated = await db.user.update({ where: { id: user.id }, data });
+  let title: string | null | undefined; // undefined — не менять
+  if (data.professionId === CUSTOM_PROFESSION_ID) {
+    title = (professionTitle ?? '').replace(/\s+/g, ' ');
+    if (title.length < 2) throw new ApiError(400, 'Напишите, кем вы хотите работать — например, «Сомелье» или «Инженер-гидролог»');
+  } else if (data.professionId) title = null;
+  const updated = await db.user.update({ where: { id: user.id }, data: { ...data, ...(title !== undefined ? { professionTitle: title } : {}) } });
   // Профессия — основа продукта: при смене цели оценка резюме пересчитывается под неё
-  const goalChanged = (data.professionId && data.professionId !== user.professionId) || (data.level && data.level !== user.level);
+  const goalChanged = (data.professionId && data.professionId !== user.professionId) || (data.level && data.level !== user.level) || (title !== undefined && title !== user.professionTitle);
   if (goalChanged && updated.professionId && updated.level) {
     try {
       const resume = await latestResume(user.id);
-      const ctx = resume && (await getProfessionContext(updated.professionId, updated.level as 'junior'));
+      const ctx = resume && (await getProfessionContext(updated.professionId, updated.level as 'junior', updated.professionTitle));
       if (resume && ctx) {
         // При превышении лимита частоты или месячного лимита Free профессия сохраняется, пересчёт оценки пропускается
         aiRateLimit(user.id);
@@ -45,7 +53,7 @@ export const PATCH = handler(async (req: Request) => {
   // Данные из JobToo, ожидавшие выбора профессии, применяются сразу после него
   let landing: string | null = null;
   if (updated.professionId && updated.level) landing = await applyPendingImports(user.id).catch(() => null);
-  return json({ ok: true, professionId: updated.professionId, level: updated.level, name: updated.name, landing });
+  return json({ ok: true, professionId: updated.professionId, professionTitle: updated.professionTitle, level: updated.level, name: updated.name, landing });
 });
 
 const delSchema = z.object({ code: z.string().max(20).optional(), password: z.string().max(200).optional() });

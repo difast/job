@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { professionName } from '@/lib/profession';
 import { requirePageUser } from '@/lib/auth';
 import { latestResume } from '@/lib/context';
 import { relativeDay } from '@/lib/format';
@@ -21,7 +22,7 @@ export default async function ResumePage() {
     return (
       <>
         <PageHeader title="Моё резюме" subtitle="Загрузите резюме — оценим структуру, опыт, достижения, навыки, соответствие профессии и читаемость для ATS." />
-        <div className="max-w-3xl space-y-3"><ResumeUploader goalLabel={user.profession!.name} />{quota}</div>
+        <div className="max-w-3xl space-y-3"><ResumeUploader goalLabel={professionName(user)} />{quota}</div>
       </>
     );
   }
@@ -33,7 +34,7 @@ export default async function ResumePage() {
     <>
       <PageHeader
         title="Моё резюме"
-        subtitle={<span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="inline-flex items-center gap-1.5"><Icon name="clock" size={14} className="text-muted" />Последний анализ: {relativeDay(resume.analyzedAt)}</span><span className="text-muted">для цели «{user.profession!.name}»</span></span>}
+        subtitle={<span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="inline-flex items-center gap-1.5"><Icon name="clock" size={14} className="text-muted" />Последний анализ: {relativeDay(resume.analyzedAt)}</span><span className="text-muted">для цели «{professionName(user)}»</span></span>}
         action={<div className="flex flex-col items-start gap-1.5 sm:items-end"><Link href="/vacancies" className={buttonClass({ size: 'lg' })}>Улучшить под вакансию<Icon name="arrow-right" size={16} /></Link><span className="text-xs text-muted">Откроет раздел «Вакансии»: вставите текст — предложим правки</span></div>}
       />
       {stale && <Alert tone="warn" className="mb-6"><div className="flex flex-wrap items-center justify-between gap-3"><span>Оценка сделана для прежней цели. Обновите анализ под текущую профессию и уровень — это займёт несколько секунд.</span><ReanalyzeButton /></div></Alert>}

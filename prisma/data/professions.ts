@@ -1,5 +1,6 @@
 // Справочник профессий. Для добавления новой профессии достаточно дописать запись —
 // seed и весь UI подхватят её из БД. Профили уровней (junior/middle/senior/lead) обязательны.
+import { aliasesForExisting, customProfession, moreInExisting, newCategories } from './professions-more';
 export type LevelKey = 'junior' | 'middle' | 'senior' | 'lead';
 
 export interface ProfessionSeed {
@@ -10,6 +11,7 @@ export interface ProfessionSeed {
   skills: string[];
   requirements: string[];
   levels: Record<LevelKey, string>; // краткий фокус уровня
+  aliases?: string[]; // синонимы для поиска и сопоставления должностей («специалист по сбыту»)
 }
 
 export interface CategorySeed {
@@ -18,7 +20,8 @@ export interface CategorySeed {
   professions: ProfessionSeed[];
 }
 
-export const categories: CategorySeed[] = [
+/** Исходные группы и профессии. Расширение справочника — в professions-more.ts. */
+const baseCategories: CategorySeed[] = [
   {
     id: 'management',
     name: 'Управление и бизнес',
@@ -512,4 +515,17 @@ export const LEVELS: { id: LevelKey; label: string; yearsFrom: number; yearsTo: 
   { id: 'middle', label: 'Middle', yearsFrom: 2, yearsTo: 5, expectations: ['Самостоятельно ведёт задачи и участки работы', 'Отвечает за результат и измеримые показатели', 'Взаимодействует с соседними командами'] },
   { id: 'senior', label: 'Senior', yearsFrom: 5, yearsTo: null, expectations: ['Принимает решения на уровне направления', 'Наставляет коллег и улучшает процессы', 'Связывает работу с бизнес-результатом'] },
   { id: 'lead', label: 'Lead / Руководитель', yearsFrom: 6, yearsTo: null, expectations: ['Управляет командой и приоритетами', 'Отвечает за стратегию и результат подразделения', 'Выстраивает процессы, нанимает и развивает людей'] },
+];
+
+/** Полный справочник: исходные группы (с добавленными профессиями и синонимами) + новые группы. «Другая профессия» — в группе «other». */
+export const categories: CategorySeed[] = [
+  ...baseCategories.map((c) => ({
+    ...c,
+    professions: [
+      ...c.professions.map((p) => ({ ...p, aliases: [...(p.aliases ?? []), ...(aliasesForExisting[p.id] ?? [])] })),
+      ...(moreInExisting[c.id] ?? []),
+      ...(c.id === 'other' ? [customProfession] : []),
+    ],
+  })),
+  ...newCategories,
 ];

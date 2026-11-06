@@ -14,7 +14,7 @@ async function main() {
     for (const p of cat.professions) {
       const data = {
         name: p.name, nameEn: p.nameEn ?? null, categoryId: cat.id, description: p.description,
-        skills: JSON.stringify(p.skills), requirements: JSON.stringify(p.requirements), sortOrder: order++,
+        skills: JSON.stringify(p.skills), requirements: JSON.stringify(p.requirements), aliases: JSON.stringify(p.aliases ?? []), sortOrder: order++,
       };
       await prisma.profession.upsert({ where: { id: p.id }, update: data, create: { id: p.id, ...data } });
       for (const lv of LEVELS) {

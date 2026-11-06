@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { professionName } from '@/lib/profession';
 import AppShell from '@/components/AppShell';
 import { GoalProvider } from '@/components/GoalContext';
 import { ToastProvider } from '@/components/Toast';
@@ -16,8 +17,8 @@ export default async function Layout({ children }: { children: React.ReactNode }
   return (
     <ToastProvider>
     <ConfirmProvider>
-    <GoalProvider goal={{ professionId: user.professionId!, professionName: user.profession!.name, level }}>
-      <AppShell user={{ name: user.name, email: user.email }} professionName={user.profession!.name} level={level} tier={currentTier(user).tier} pro={isPro(user)}>{children}</AppShell>
+    <GoalProvider goal={{ professionId: user.professionId!, professionName: professionName(user), professionTitle: user.professionTitle, level }}>
+      <AppShell user={{ name: user.name, email: user.email }} professionName={professionName(user)} level={level} tier={currentTier(user).tier} pro={isPro(user)}>{children}</AppShell>
     </GoalProvider>
     </ConfirmProvider>
     </ToastProvider>

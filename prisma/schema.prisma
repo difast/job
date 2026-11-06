@@ -25,6 +25,7 @@ model Profession {
   description  String
   skills       String // JSON: string[] — типичные навыки
   requirements String // JSON: string[] — типичные требования
+  aliases      String             @default("[]") // JSON: string[] — синонимы для поиска («специалист по сбыту»)
   sortOrder    Int                @default(0)
   active       Boolean            @default(true)
 
@@ -82,6 +83,7 @@ model User {
   professionId    String?
   profession      Profession? @relation(fields: [professionId], references: [id])
   level           String?
+  professionTitle String? // своё название профессии, если выбрана «Другая профессия» (professionId = custom)
   plan            String      @default("free") // free | pro
   planUntil       DateTime? // до какого момента оплачен pro
   pdConsentAt     DateTime? // когда дано согласие на обработку персональных данных (отдельная отметка при регистрации)

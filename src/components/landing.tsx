@@ -1,3 +1,4 @@
+import { categories } from '../../prisma/data/professions';
 import Link from 'next/link';
 import Icon from './Icon';
 import { Logo, Meter, ScoreRing, cx } from './ui';
@@ -93,7 +94,7 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
         <div className="relative grid gap-12 px-6 pb-10 pt-12 sm:px-12 sm:pb-14 sm:pt-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-10 lg:px-14 lg:py-20 xl:px-20">
           <div className="page-in">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3.5 py-1.5 text-[13px] text-milk/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-300" />38 профессий · от Junior до Lead
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-300" />{PROFESSION_COUNT} {PROFESSION_WORD} · от Junior до Lead
             </span>
             <h1 className="font-display mt-7 text-[38px] font-semibold leading-[1.03] tracking-[-0.035em] sm:text-[54px] lg:text-[52px] xl:text-[62px]">
               <span className="block">Подготовьте резюме.</span>
@@ -198,21 +199,24 @@ export function HowItWorks() {
 }
 
 /* ───────── Профессии: крупное «заявление» ───────── */
-const PROFESSIONS = ['Продакт-менеджер', 'Маркетолог', 'Финансовый аналитик', 'Юрист', 'Бухгалтер', 'HR-менеджер', 'Инженер', 'Аналитик данных', 'Менеджер по продажам', 'Дизайнер', 'Проектный менеджер', 'Архитектор'];
+const PROFESSIONS = ['Менеджер по продажам', 'Бухгалтер', 'Продакт-менеджер', 'Юрист', 'Медицинская сестра', 'Повар', 'Инженер ПТО', 'Графический дизайнер', 'HR-менеджер', 'Логист', 'Фитнес-тренер', 'Аналитик данных'];
+/** Число профессий справочника (без «Другой профессии») — из тех же данных, что загружаются в базу. */
+const PROFESSION_COUNT = categories.flatMap((c) => c.professions).filter((p) => p.id !== 'custom').length;
+const PROFESSION_WORD = ((n) => (n % 10 === 1 && n % 100 !== 11 ? 'профессия' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'профессии' : 'профессий'))(PROFESSION_COUNT);
 
 export function Professions({ signedIn }: { signedIn: boolean }) {
   return (
     <section id="professions" className={cx(wrap, 'scroll-mt-20 py-20 text-center sm:py-28')}>
-      <div className="font-display text-[132px] font-semibold leading-[0.82] tracking-[-0.06em] sm:text-[200px] lg:text-[240px]" aria-hidden="true">38</div>
+      <div className="font-display text-[132px] font-semibold leading-[0.82] tracking-[-0.06em] sm:text-[200px] lg:text-[240px]" aria-hidden="true">{PROFESSION_COUNT}</div>
       <h2 className="font-display mx-auto mt-6 max-w-[760px] text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] sm:text-[46px]">
-        профессий и четыре уровня —{' '}<span className="whitespace-nowrap text-accent-600">не только IT</span>
+        {PROFESSION_WORD} и четыре уровня —{' '}<span className="whitespace-nowrap text-accent-600">не только IT</span>
       </h2>
       <p className="mx-auto mt-5 max-w-[560px] text-[16px] leading-relaxed text-ink-2">
         Выберите профессию и уровень — рекомендации, вопросы для собеседования и анализ резюме будут адаптированы под вашу цель.
       </p>
       <ul className="mx-auto mt-10 flex max-w-[880px] flex-wrap justify-center gap-2.5">
         {PROFESSIONS.map((p) => <li key={p} className="rounded-full border border-line-strong bg-milk px-4 py-2 text-[15px] text-ink">{p}</li>)}
-        <li className="rounded-full border border-dashed border-line-strong px-4 py-2 text-[15px] text-muted">и ещё 26</li>
+        <li className="rounded-full border border-dashed border-line-strong px-4 py-2 text-[15px] text-muted">и ещё {PROFESSION_COUNT - PROFESSIONS.length} — или впишите свою</li>
       </ul>
       <p className="mt-6 text-[14px] text-muted">Junior · Middle · Senior · Lead</p>
       <Link href={signedIn ? '/dashboard' : '/register'} className="mt-10 inline-flex h-14 items-center gap-2.5 rounded-full bg-ink px-7 text-[16px] font-medium text-milk transition-colors hover:bg-black">

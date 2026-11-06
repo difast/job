@@ -92,7 +92,13 @@ ok((await req('/dashboard')).status === 307, 'без профессии dashboar
 // Профессии из БД
 const all = await jsonOf(await req('/api/professions'));
 const total = all.categories.reduce((a, c) => a + c.professions.length, 0);
-ok(total === 38 && all.categories.length === 5, `в БД 38 профессий в 5 категориях (получено ${total}/${all.categories.length})`);
+const ids = new Set(all.categories.flatMap((c) => c.professions.map((p) => p.id)));
+ok(total >= 160 && all.categories.length >= 20 && ['product-manager', 'sales-director', 'translator', 'doctor'].every((id) => ids.has(id)) && !ids.has('custom'), `справочник: ${total} профессий в ${all.categories.length} группах, исходные на месте, «Другая профессия» в списке не показывается`);
+ok(['Управление и бизнес', 'Маркетинг и коммуникации', 'IT и аналитика', 'Финансы и право', 'Другие профессиональные направления'].every((n) => all.categories.some((c) => c.name === n)), 'исходные 5 групп сохранены');
+const syn = await jsonOf(await req(`/api/professions?q=${encodeURIComponent('специалист по сбыту')}`));
+ok(syn.categories.flatMap((c) => c.professions).some((p) => p.id === 'sales-representative'), 'поиск по синонимам («специалист по сбыту» → Торговый представитель)');
+ok((await post('/api/profile', { professionId: 'custom', level: 'middle' }, 'PATCH')).status === 400, '«Другая профессия» без названия отклонена');
+ok((await post('/api/profile', { professionId: 'custom', professionTitle: '  Сомелье ', level: 'middle' }, 'PATCH')).status === 200 && (await (await req('/dashboard')).text()).includes('Сомелье'), '«Другая профессия»: своё название сохраняется и показывается как цель');
 const found = await jsonOf(await req('/api/professions?q=sql'));
 ok(found.categories.flatMap((c) => c.professions).some((p) => p.id === 'data-analyst'), 'поиск по профессиям (sql → Аналитик данных)');
 ok((await post('/api/profile', { professionId: 'nope', level: 'middle' }, 'PATCH')).status === 404, 'несуществующая профессия отклонена');

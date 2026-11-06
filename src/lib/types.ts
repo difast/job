@@ -22,6 +22,7 @@ export interface ProfessionContext {
   name: string;
   nameEn: string | null;
   description: string;
+  custom?: boolean; // «Другая профессия»: название указал пользователь, навыков и требований из справочника нет
   skills: string[];
   requirements: string[];
   level: LevelKey;

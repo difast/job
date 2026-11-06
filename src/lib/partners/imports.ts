@@ -44,7 +44,7 @@ export async function applyImport(importId: string, userId: string): Promise<{ l
   const p = parseImport(row.payload);
   const user = await ensureGoal(userId, p);
   if (!user?.professionId || !isLevel(user.level)) return { landing: '/onboarding', applied: false };
-  const ctx = await getProfessionContext(user.professionId, user.level);
+  const ctx = await getProfessionContext(user.professionId, user.level, user.professionTitle);
   if (!ctx) return { landing: '/onboarding', applied: false };
 
   const claimed = await db.partnerImport.deleteMany({ where: { id: importId } });

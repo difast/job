@@ -17,7 +17,7 @@ export const COMMON_RULES = `Ты — ИИ-ассистент сервиса Cly
 export const JSON_ONLY = 'Формат ответа: только один JSON-объект строго по описанной схеме — без markdown, без комментариев и без текста до или после JSON. Строки — на русском языке.';
 
 export const profileBlock = (p: ProfessionContext) =>
-  `<profession>\nЦелевая профессия: ${p.name}. Уровень: ${LEVEL_LABELS[p.level]}.\nОписание: ${p.description}\nТипичные навыки: ${p.skills.join(', ')}\nТипичные требования: ${p.requirements.join('; ')}\nОжидания уровня: ${p.levelSummary} ${p.levelExpectations.join('; ')}\n</profession>`;
+  `<profession>\nЦелевая профессия: ${p.name}. Уровень: ${LEVEL_LABELS[p.level]}.\nОписание: ${p.description}\n${p.skills.length ? `Типичные навыки: ${p.skills.join(', ')}\nТипичные требования: ${p.requirements.join('; ')}\n` : 'Навыки и требования профессии в справочнике не заданы — опирайся на общепринятые для этой профессии и на текст вакансии, не придумывая факты о кандидате.\n'}Ожидания уровня: ${p.levelSummary} ${p.levelExpectations.join('; ')}\n</profession>`;
 
 /** Оборачивает пользовательский текст в тег; закрывающий тег внутри данных нейтрализуется. */
 export const tag = (name: string, text: string) => `<${name}>\n${text.replace(new RegExp(`</?${name}>`, 'gi'), '')}\n</${name}>`;
