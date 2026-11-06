@@ -1,6 +1,6 @@
 // Мок-сервер GigaChat API для E2E (НЕ настоящая модель). Отвечает по протоколу GigaChat (OAuth + chat/completions)
 // детерминированными ответами, построенными из входных данных, и умеет имитировать сбои и «галлюцинации»,
-// чтобы проверить серверные проверки Clymly. Управление: GET /__mode?m=ok|500|429|malformed|401, GET /__log, POST /__reset.
+// чтобы проверить серверные проверки Clymly. Управление: GET /__mode?m=ok|500|429|malformed|401|blacklist|blacklist-once, GET /__log, POST /__reset.
 import { createServer } from 'node:http';
 
 const words = (s) => (s.toLowerCase().replace(/ё/g, 'е').match(/[a-zа-я0-9]+/g) ?? []).filter((w) => w.length >= 5).map((w) => w.slice(0, 6));
@@ -41,6 +41,11 @@ function reply(system, user) {
     const bullets = lines.filter(([, t]) => /^\s*[-•]/.test(t) && !/\d/.test(t)).slice(0, 2);
     const changes = bullets.map(([i, t]) => ({ lineIndex: i, adapted: `${t.trim()}, с вниманием к качеству`, reason: 'Подчёркивает аккуратность, важную для вакансии', section: 'Опыт' }));
     if (bullets[0]) changes.push({ lineIndex: bullets[0][0], adapted: `${bullets[0][1].trim()} и разработка на Python`, reason: 'Добавлен навык из вакансии', section: 'Опыт' }); // должна быть отброшена
+    // Удаление: неуместная строка принимается; заголовок раздела и строка с датами должны быть отброшены
+    for (const [i, t] of lines) {
+      if (/^хобби/i.test(t)) changes.push({ lineIndex: i, adapted: '', reason: 'Не относится к работе', section: 'О себе' });
+      if (/^опыт работы$/i.test(t) || /\d{4}/.test(t)) changes.push({ lineIndex: i, adapted: '', reason: 'лишнее', section: 'Опыт' });
+    }
     return { changes };
   }
   if (system.includes('напиши сопроводительное письмо')) {
@@ -90,6 +95,10 @@ export function startMockGigaChat({ port = 4200 } = {}) {
         if (state.mode === '500') return send(500, { message: 'Internal error' });
         if (state.mode === '429') return send(429, { message: 'Too Many Requests' });
         if (state.mode === '401') return send(401, { message: 'Token has expired' });
+        if (state.mode === 'blacklist' || state.mode === 'blacklist-once') {
+          if (state.mode === 'blacklist-once') state.mode = 'ok';
+          return send(200, { choices: [{ message: { role: 'assistant', content: 'Не люблю менять тему разговора, но вот сейчас тот самый случай.' }, finish_reason: 'blacklist', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion' });
+        }
         const content = state.mode === 'malformed' ? 'Извините, вот мой ответ без JSON' : (() => { const r = reply(system, b.messages.length > 2 ? b.messages[1].content : user); return r.text ?? JSON.stringify(r); })();
         return send(200, { choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop', index: 0 }], model: `${b.model}:mock`, object: 'chat.completion' });
       }

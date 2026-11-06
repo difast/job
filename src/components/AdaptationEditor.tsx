@@ -49,6 +49,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
     acc.filter((c) => c.kind === 'insert' && c.lineIndex < 0).forEach((c) => rows.push({ text: eff(c), changed: true }));
     origLines.forEach((l, i) => {
       const rep = acc.find((c) => c.kind === 'replace' && c.lineIndex === i);
+      if (rep && !eff(rep).trim()) return; // строка удалена
       rows.push(rep ? { text: eff(rep), orig: l, changed: true } : { text: l, changed: false });
       acc.filter((c) => c.kind === 'insert' && c.lineIndex === i).forEach((c) => eff(c).split('\n').forEach((t) => rows.push({ text: t, changed: true })));
     });
@@ -56,7 +57,7 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
   }, [changes, origLines]);
 
   if (!changes.length) {
-    return <EmptyState icon="check-circle" title="Правок не потребовалось" text="Мы не нашли безопасных улучшений формулировок: резюме уже хорошо подходит под вакансию, а выдумывать факты мы не будем. Можно скачать текущую версию." action={<a href={`/api/adaptations/${id}/pdf`} download className={buttonClass({ size: 'lg' })}><Icon name="download" size={16} />Скачать PDF</a>} />;
+    return <EmptyState icon="check-circle" title="Правок для этой вакансии нет" text="ИИ не предложил изменений, которые можно внести, не выдумывая фактов. Это не значит, что резюме идеально: посмотрите рекомендации в разделе «Резюме» и добавьте в него больше конкретики об опыте — тогда адаптация сможет предложить больше правок. Текущую версию можно скачать." action={<a href={`/api/adaptations/${id}/pdf`} download className={buttonClass({ size: 'lg' })}><Icon name="download" size={16} />Скачать PDF</a>} />;
   }
 
   return (
@@ -102,7 +103,9 @@ export default function AdaptationEditor({ id, vacancyId, vacancyTitle, original
                 </div>
               ) : (
                 <div className="user-text whitespace-pre-wrap rounded-lg bg-canvas px-3.5 py-3 text-sm leading-relaxed">
-                  {c.kind === 'insert' ? <span className="diff-ins">{eff(c)}</span> : <Diff a={c.original} b={eff(c)} side="both" />}
+                  {c.kind === 'insert' ? <span className="diff-ins">{eff(c)}</span>
+                    : !eff(c).trim() ? <><span className="mb-1 block text-xs font-medium text-muted">Удалить строку</span><span className="diff-del">{c.original}</span></>
+                    : <Diff a={c.original} b={eff(c)} side="both" />}
                 </div>
               )}
               <p className="mt-3 text-[13px] text-muted">{c.reason}</p>

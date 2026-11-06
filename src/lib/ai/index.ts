@@ -97,23 +97,40 @@ export async function analyzeVacancy(vacancyText: string, resumeText: string, p:
 
 /* ───────── Адаптация резюме ───────── */
 export const adaptSchema = z.object({
-  changes: z.array(z.object({ lineIndex: z.number().int().min(0), adapted: z.string(), reason: z.string().default(''), section: z.string().optional() })).max(20),
+  changes: z.array(z.object({ lineIndex: z.number().int().min(0), adapted: z.string(), reason: z.string().default(''), section: z.string().optional() })).max(25),
 });
 
-/** Отбрасывает правки, которые меняют факты или подгоняют резюме под вакансию. */
+/** Строку можно предложить удалить, если в ней нет дат (места работы, учёба) и это не заголовок раздела. */
+export function removableLine(line: string) {
+  const t = line.trim();
+  if (/\b(19|20)\d{2}\b/.test(t)) return false;
+  if (t.length <= 40 && t === t.toUpperCase() && /[A-ZА-ЯЁ]{3}/.test(t)) return false;
+  // Заголовки разделов и строки-разделы в любом регистре: «Опыт работы», «Навыки: …», «Образование»
+  if (/^(опыт( работы)?|образование|навыки|ключевые навыки|о себе|контакты|достижения|цель|курсы|языки|проекты|сертификаты|work experience|experience|education|skills|summary)(?=$|[\s:.,;—-])/i.test(t)) return false;
+  return true;
+}
+
+/** Отбрасывает правки, которые меняют факты или подгоняют резюме под вакансию. Пустой adapted — удаление строки. */
 export function filterChanges(raw: z.infer<typeof adaptSchema>['changes'], resumeLines: string[], resumeText: string, vacancyText: string): Change[] {
   const changes: Change[] = [];
   const used = new Set<number>();
+  let removals = 0;
   for (const c of raw) {
     const original = resumeLines[c.lineIndex];
     const adapted = c.adapted.trim();
-    if (original === undefined || !original.trim() || !adapted || adapted === original.trim() || used.has(c.lineIndex)) continue;
-    if (/\[(email|телефон|ссылка)\]|\[[^\]]{2,}\]/i.test(adapted) || /[\w.+-]+@[\w-]+\./.test(original)) continue; // заглушки и строки с контактами
-    if (introducesNewFacts(original, adapted)) continue; // новые числа, термины, названия
-    if (vacancyOnlyTerms(adapted, original, resumeText, vacancyText).length > 1) continue; // слова вакансии, которых нет в резюме
+    if (original === undefined || !original.trim() || adapted === original.trim() || used.has(c.lineIndex)) continue;
+    if (/[\w.+-]+@[\w-]+\./.test(original) || /\[(email|телефон|ссылка)\]/i.test(original)) continue; // строки с контактами не трогаем
+    if (!adapted) {
+      if (!removableLine(original) || removals >= 6) continue;
+      removals++;
+    } else {
+      if (/\[[^\]]{2,}\]/.test(adapted)) continue; // заглушки
+      if (introducesNewFacts(original, adapted, resumeText)) continue; // новые числа, термины, названия
+      if (vacancyOnlyTerms(adapted, original, resumeText, vacancyText).length > 1) continue; // слова вакансии, которых нет в резюме
+    }
     used.add(c.lineIndex);
-    changes.push({ id: `c${changes.length + 1}`, kind: 'replace', lineIndex: c.lineIndex, section: c.section?.trim() || 'Опыт', original, adapted, reason: c.reason.trim() || 'Формулировка точнее отвечает вакансии', status: 'pending' });
-    if (changes.length >= 12) break;
+    changes.push({ id: `c${changes.length + 1}`, kind: 'replace', lineIndex: c.lineIndex, section: c.section?.trim() || 'Опыт', original, adapted, reason: c.reason.trim() || (adapted ? 'Формулировка точнее отвечает вакансии' : 'Строка не помогает получить эту работу'), status: 'pending' });
+    if (changes.length >= 15) break;
   }
   return changes;
 }

@@ -11,7 +11,8 @@ export function applyChanges(resumeText: string, changes: Change[]): string {
   inserts.filter((c) => c.lineIndex < 0).forEach((c) => out.push(effective(c)));
   ls.forEach((l, i) => {
     const rep = accepted.find((c) => c.kind === 'replace' && c.lineIndex === i);
-    out.push(rep ? effective(rep) : l);
+    if (!rep) out.push(l);
+    else if (effective(rep).trim()) out.push(effective(rep)); // пустая правка — строка удалена
     inserts.filter((c) => c.lineIndex === i).forEach((c) => out.push(effective(c)));
   });
   return out.join('\n');

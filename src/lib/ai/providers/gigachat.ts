@@ -168,7 +168,7 @@ export function createGigaChat(c: GigaChatConfig): AiProvider {
         stream: false,
         ...(c.structured && req.jsonSchema ? { response_format: { type: 'json_schema', schema: req.jsonSchema } } : {}),
       });
-      let attempt = 0; let reauthorized = false;
+      let attempt = 0; let reauthorized = false; let filtered = false;
       for (;;) {
         const left = deadline - Date.now();
         if (left < 2_000) throw new AiError('unavailable', 'GigaChat: исчерпано время на запрос');
@@ -211,7 +211,11 @@ export function createGigaChat(c: GigaChatConfig): AiProvider {
         if (r!.status === 404) throw new AiError('config', `GigaChat 404: модель ${c.model} или адрес ${c.apiUrl} не найдены — проверьте GIGACHAT_MODEL и GIGACHAT_API_URL`);
         if (r!.status === 413 || r!.status === 422) throw new AiError('refused', `GigaChat ${r!.status}: запрос отклонён ${providerMessage(r!.body)}`.trim());
         if (r!.status !== 200) throw new AiError('unavailable', `GigaChat HTTP ${r!.status}`);
-        return parseCompletion(r!.body, !!req.json);
+        try { return parseCompletion(r!.body, !!req.json); } catch (e) {
+          // Фильтр провайдера срабатывает нестабильно на тот же запрос: одна повторная попытка за вызов
+          if (e instanceof AiError && e.kind === 'refused' && !filtered && Date.now() + 2_000 < deadline) { filtered = true; continue; }
+          throw e;
+        }
       }
     },
   };

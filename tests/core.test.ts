@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { introducesNewFacts } from '../src/lib/ai/guard';
+import { filterChanges, removableLine } from '../src/lib/ai';
 import { adaptResumeHeuristic, analyzeResumeHeuristic, analyzeVacancyHeuristic, extractRequirementLines, feedbackHeuristic } from '../src/lib/ai/heuristic';
 import { applyChanges, diffWords } from '../src/lib/changes';
 import { estimateYears } from '../src/lib/text';
@@ -28,6 +29,28 @@ test('guard блокирует выдуманные числа, технолог
   assert.match(introducesNewFacts(src, 'Запустил приложение, 80 000 пользователей') ?? '', /число/);
   assert.match(introducesNewFacts(src, 'Запустил приложение, использовал SQL и Kubernetes') ?? '', /kubernetes/);
   assert.match(introducesNewFacts('Работал в проекте над платформой', 'Работал в проекте над платформой, Яндекс') ?? '', /яндек/);
+});
+
+test('guard: термины из других строк резюме и исправление опечаток допустимы, чужие числа — нет', () => {
+  const cv = 'ОПЫТ РАБОТЫ\n2021 - 2023 ООО «Ромашка» — Junior Developer\n- писал код\n- Делаю приложения на Flatter и немного на Pyton\nНАВЫКИ\nFlutter, Dart, Python, SQL\n- Написал 1 приложение, которым пользуются 12 человек';
+  assert.equal(introducesNewFacts('- писал код', '- Разрабатывал приложения на Flutter и Dart', cv), null, 'Flutter и Dart есть в навыках');
+  assert.equal(introducesNewFacts('- Делаю приложения на Flatter и немного на Pyton', '- Разрабатываю приложения на Flutter, немного на Python', 'только эта строка'), null, 'опечатки исправлены');
+  assert.match(introducesNewFacts('- писал код', '- Разрабатывал на Kotlin', cv) ?? '', /kotlin/);
+  assert.match(introducesNewFacts('- писал код', '- Написал код для 12 пользователей', cv) ?? '', /число «12»/, 'число из другой строки не переносится');
+});
+
+test('адаптация: удаление неуместных строк, строки с датами и заголовки защищены', () => {
+  const lines = ['РЕЗЮМЕ!!!', '(тут фото потом)', 'ОПЫТ РАБОТЫ', '2021 - 2023 ООО «Ромашка» — Junior Developer', '- писал код', 'Семейное положение: не женат', 'почта: user@example.com'];
+  assert.ok(!removableLine('ОПЫТ РАБОТЫ') && !removableLine('Опыт работы') && !removableLine('Навыки: работа с кассой') && !removableLine('2021 - 2023 ООО «Ромашка» — Junior Developer') && removableLine('(тут фото потом)'));
+  const ch = filterChanges([
+    { lineIndex: 1, adapted: '', reason: 'не нужно' }, { lineIndex: 5, adapted: '', reason: 'не относится к работе' },
+    { lineIndex: 2, adapted: '', reason: '' }, { lineIndex: 3, adapted: '', reason: '' }, { lineIndex: 6, adapted: '', reason: '' },
+    { lineIndex: 4, adapted: '- Разрабатывал и поддерживал код приложения', reason: 'конкретнее' },
+  ], lines, lines.join('\n'), 'Ищем разработчика');
+  assert.deepEqual(ch.map((c) => c.lineIndex), [1, 5, 4]);
+  const out = applyChanges(lines.join('\n'), ch.map((c) => ({ ...c, status: 'accepted' as const })));
+  assert.ok(!out.includes('тут фото') && !out.includes('Семейное') && out.includes('ОПЫТ РАБОТЫ') && out.includes('Разрабатывал и поддерживал'));
+  assert.equal(out.split('\n').length, lines.length - 2, 'удалённые строки не оставляют пустых');
 });
 
 test('анализ резюме: оценки в диапазоне, 3–5 рекомендаций', () => {

@@ -49,7 +49,8 @@ const SELLER = `Иван Петров
 - Выполнял план продаж на 110%
 Образование
 2018 — Колледж торговли
-Навыки: работа с кассой, общение с клиентами`;
+Навыки: работа с кассой, общение с клиентами
+Хобби: рыбалка, люблю пиццу`;
 const VACANCY = `Вакансия: Python-разработчик
 Требования:
 - Опыт коммерческой разработки на Python от 5 лет
@@ -97,9 +98,10 @@ ok(r.status === 422 && r.error.includes('не описание вакансии'
 /* ───────── Адаптация ───────── */
 section('Адаптация резюме');
 r = await body(await A.json(`/api/vacancies/${vid}/adapt`, {}));
-ok(r.status === 200 && r.changes === 2, `предложено 2 честные правки, правка с «Python» отброшена (${r.changes})`);
+ok(r.status === 200 && r.changes === 3, `предложено 3 честные правки (2 формулировки и удаление «Хобби»), правка с «Python» и удаление строк с датами и заголовка отброшены (${r.changes})`);
 h = clean(await A.text(`/vacancies/${vid}/adapt`));
 ok(h.includes('с вниманием к качеству') && !h.includes('разработка на Python'), 'страница адаптации: только проверенные правки');
+ok(h.includes('Удалить строку') && h.includes('Хобби: рыбалка'), 'страница адаптации: предложение удалить неуместную строку');
 
 /* ───────── Письмо ───────── */
 section('Сопроводительное письмо');
@@ -148,9 +150,12 @@ for (const [m, status, text] of [['500', 503, 'ИИ-сервис не ответ
   r = await body(await A.json('/api/vacancies', { text: V2 }));
   ok(r.status === status && r.error.includes(text) && !/GigaChat|HTTP|JSON|token|Bearer|stack/i.test(r.error), `режим ${m}: ${status} с понятным сообщением без технических подробностей`);
 }
-await mode('ok');
+await mode('blacklist');
 r = await body(await A.json('/api/vacancies', { text: V2 }));
-ok(r.status === 200 && r.id, 'после восстановления повторный запрос проходит');
+ok(r.status === 422 && r.error.includes('фильтр') && !/GigaChat|blacklist/i.test(r.error), 'фильтр GigaChat срабатывает всегда — понятное сообщение 422');
+await mode('blacklist-once');
+r = await body(await A.json('/api/vacancies', { text: V2 }));
+ok(r.status === 200 && r.id, 'фильтр GigaChat сработал один раз — автоматический повтор, анализ готов');
 
 /* ───────── Интерфейс ───────── */
 section('Интерфейс');
