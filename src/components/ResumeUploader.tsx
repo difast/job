@@ -9,7 +9,7 @@ import { request } from '@/lib/client';
 const MAX_MB = 5;
 /** Проверка файла до отправки — ошибка видна сразу, без ожидания сервера. */
 function checkFile(f: File): string | null {
-  if (!/\.(pdf|docx|txt)$/i.test(f.name)) return 'Поддерживаются файлы PDF и DOCX. Если резюме в другом формате, сохраните его как PDF.';
+  if (!/\.(pdf|docx|txt)$/i.test(f.name)) return 'Поддерживаются файлы PDF, DOCX и TXT. Если резюме в другом формате, сохраните его как PDF.';
   if (f.size > MAX_MB * 1024 * 1024) return `Файл больше ${MAX_MB} МБ. Сожмите его или сохраните без изображений.`;
   if (f.size === 0) return 'Файл пустой. Выберите другой файл.';
   return null;
@@ -71,7 +71,7 @@ export default function ResumeUploader({ variant = 'hero', label = 'Загруз
           <h2 className="text-xl font-semibold tracking-tight">Начните с резюме</h2>
           <p className="mt-2 text-[15px] text-ink-2">Загрузите резюме, чтобы получить персональный анализ и рекомендации.</p>
           <Button size="lg" className="mt-7" onClick={() => input.current?.click()}><Icon name="upload" size={17} />{label}</Button>
-          <p className="mt-3 text-[13px] text-muted">PDF или DOCX до 5 МБ — можно перетащить файл сюда</p>
+          <p className="mt-3 text-[13px] text-muted">PDF, DOCX или TXT до 5 МБ — можно перетащить файл сюда</p>
           {error && <Alert className="mt-5 w-full text-left">{error}</Alert>}
         </div>
       )}

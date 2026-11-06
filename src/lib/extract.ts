@@ -22,11 +22,11 @@ export async function extractResumeText(fileName: string, buf: Buffer): Promise<
     } else if (ext === 'txt') {
       text = buf.toString('utf8');
     } else {
-      throw new ApiError(400, 'Поддерживаются файлы PDF и DOCX');
+      throw new ApiError(400, 'Поддерживаются файлы PDF, DOCX и TXT');
     }
   } catch (e) {
     if (e instanceof ApiError) throw e;
-    throw new ApiError(422, 'Не удалось прочитать файл. Убедитесь, что это корректный PDF/DOCX с текстом (не скан).');
+    throw new ApiError(422, 'Не удалось прочитать файл. Убедитесь, что это корректный PDF, DOCX или TXT с текстом (не скан).');
   }
   text = clean(text);
   if (text.length < 80) throw new ApiError(422, 'В файле слишком мало текста. Если это скан-изображение, загрузите версию с текстовым слоем.');

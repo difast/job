@@ -14,7 +14,7 @@ export const POST = handler(async (req: Request) => {
   const p = await requireProfession(user);
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
-  if (!(file instanceof File) || !file.size) throw new ApiError(400, 'Выберите файл PDF или DOCX');
+  if (!(file instanceof File) || !file.size) throw new ApiError(400, 'Выберите файл PDF, DOCX или TXT');
   if (file.size > MAX_FILE_BYTES) throw new ApiError(413, 'Файл больше 5 МБ');
   const text = await extractResumeText(file.name, Buffer.from(await file.arrayBuffer()));
   // Повторная отправка того же файла (двойной клик, повтор после сетевой ошибки) не создаёт дубль и не тратит запрос к ИИ
