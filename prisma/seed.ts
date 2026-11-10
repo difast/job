@@ -43,8 +43,11 @@ async function main() {
     await prisma.interviewQuestion.upsert({ where: { id }, update: data, create: { id, ...data } });
   }
   await prisma.interviewQuestion.deleteMany({ where: { id: { notIn: ids } } });
-  // Маркетинговая ссылка для Instagram (https://clymly.ru/go/instagram). Существующие настройки не перезаписываем.
+  // Маркетинговые ссылки (https://clymly.ru/go/<slug>). Существующие настройки не перезаписываем.
   await prisma.marketingLink.upsert({ where: { slug: 'instagram' }, update: {}, create: { slug: 'instagram', name: 'Instagram', utmSource: 'instagram', utmMedium: 'social' } });
+  // Threads: аккаунт Clymly (https://clymly.ru/go/threads) и аккаунт HR Милы (https://clymly.ru/go/mila)
+  await prisma.marketingLink.upsert({ where: { slug: 'threads' }, update: {}, create: { slug: 'threads', name: 'Threads — Clymly', utmSource: 'threads', utmMedium: 'social', utmCampaign: 'clymly' } });
+  await prisma.marketingLink.upsert({ where: { slug: 'mila' }, update: {}, create: { slug: 'mila', name: 'Threads — Мила (HR)', utmSource: 'threads', utmMedium: 'social', utmCampaign: 'mila' } });
   console.log(`Seeded: ${await prisma.profession.count()} professions, ${await prisma.interviewQuestion.count()} questions`);
 }
 
