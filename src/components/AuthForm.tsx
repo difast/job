@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import PasswordInput from './PasswordInput';
 import Icon from './Icon';
 import { ProductPreview } from './landing';
 import { Alert, Button, Logo, Spinner } from './ui';
@@ -48,7 +49,7 @@ export default function AuthForm({ mode, next: nextRaw, notice }: { mode: 'login
               <input name="email" type="email" required autoComplete="email" className={`${input} mt-1.5`} placeholder="you@example.com" />
             </label>
             <label className="block text-sm font-medium"><span className="flex items-center justify-between">Пароль{!isReg && <Link href="/forgot-password" className="text-[13px] font-normal text-accent-600 hover:underline" data-testid="forgot-link">Забыли пароль?</Link>}</span>
-              <input name="password" type="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={`${input} mt-1.5`} placeholder={isReg ? 'Минимум 8 символов' : 'Ваш пароль'} />
+              <PasswordInput name="password" required minLength={isReg ? 8 : 1} autoComplete={isReg ? 'new-password' : 'current-password'} className={input} wrapClassName="mt-1.5" placeholder={isReg ? 'Минимум 8 символов' : 'Ваш пароль'} />
             </label>
             {isReg && (
               <label className="flex items-start gap-3 rounded-lg border border-line bg-white p-3.5 text-[13px] leading-relaxed text-ink-2">

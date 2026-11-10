@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import PasswordInput from './PasswordInput';
 import { Alert, Button } from './ui';
 import { request } from '@/lib/client';
 
@@ -60,10 +61,10 @@ export function ResetForm({ token }: { token: string }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <label className="block text-sm font-medium">Новый пароль
-        <input type="password" required minLength={8} autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} className={input} placeholder="Минимум 8 символов" />
+        <PasswordInput required minLength={8} autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} className={input.replace('mt-1.5 ', '')} wrapClassName="mt-1.5" placeholder="Минимум 8 символов" />
       </label>
       <label className="block text-sm font-medium">Повторите пароль
-        <input type="password" required minLength={8} autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} className={input} />
+        <PasswordInput required minLength={8} autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} className={input.replace('mt-1.5 ', '')} wrapClassName="mt-1.5" />
       </label>
       {error && <Alert>{error}{/устарела|недействительна/.test(error) && <> <Link href="/forgot-password" className="font-medium underline">Запросить новую ссылку</Link></>}</Alert>}
       <Button type="submit" size="lg" className="w-full" loading={busy}>Сохранить пароль и войти</Button>

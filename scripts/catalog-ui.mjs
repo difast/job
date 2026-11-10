@@ -1,4 +1,5 @@
 // Справочник профессий в браузере: группы, поиск по синонимам, «Моей профессии нет в списке» — компьютер и 390 px.
+// Заодно — глазик в поле пароля при регистрации.
 // Запуск: BASE_URL=http://localhost:3000 [SHOTS=<папка>] node scripts/catalog-ui.mjs (сервер — любой, ИИ не нужен)
 import { chromium } from 'playwright-core';
 
@@ -19,6 +20,13 @@ for (const [w, h, tag] of [[1280, 900, 'd'], [390, 844, 'm']]) {
   await p.fill('input[name=name]', 'Олег Тестов');
   await p.fill('input[name=email]', `catalog_${tag}_${T}@example.com`);
   await p.fill('input[name=password]', 'password123');
+  const pwType = () => p.locator('input[name=password]').getAttribute('type');
+  ok(await pwType() === 'password', `${tag}: пароль скрыт по умолчанию`);
+  await p.getByRole('button', { name: 'Показать пароль' }).click();
+  ok(await pwType() === 'text' && (await p.locator('input[name=password]').inputValue()) === 'password123', `${tag}: глазик показывает пароль`);
+  if (SHOTS) await p.screenshot({ path: `${SHOTS}/password-${tag}-shown.png` });
+  await p.getByRole('button', { name: 'Скрыть пароль' }).click();
+  ok(await pwType() === 'password', `${tag}: повторное нажатие снова скрывает`);
   await p.check('[data-testid=consent]');
   await p.click('button[type=submit]');
   await p.waitForURL('**/onboarding');

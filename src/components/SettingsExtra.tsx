@@ -5,6 +5,7 @@ import { request } from '@/lib/client';
 import { useConfirm } from './Confirm';
 import { useToast } from './Toast';
 import { Alert, Button, Spinner } from './ui';
+import PasswordInput from './PasswordInput';
 import Icon from './Icon';
 import { ResendVerification } from './VerifyEmail';
 
@@ -115,8 +116,8 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
       </Row>
       <Row title={hasPassword ? 'Пароль' : 'Задайте пароль'} hint={hasPassword ? `Для входа по e-mail и паролю.${mailOn ? ' Смену подтвердим кодом из письма.' : ''}` : 'Аккаунт создан при переходе из JobToo. Задайте пароль, чтобы входить в Clymly напрямую.'}>
         <form onSubmit={savePassword} className="space-y-2.5" data-testid="password-form">
-          {!mailOn && hasPassword && <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} aria-label="Текущий пароль" />}
-          <input type="password" autoComplete="new-password" placeholder="Новый пароль, минимум 8 символов" value={pass} onChange={(e) => setPass(e.target.value)} className={input} aria-label="Новый пароль" minLength={8} required disabled={step === 'password'} />
+          {!mailOn && hasPassword && <PasswordInput autoComplete="current-password" placeholder="Текущий пароль" value={current} onChange={(e) => setCurrent(e.target.value)} className={input} wrapClassName="max-w-sm" aria-label="Текущий пароль" />}
+          <PasswordInput autoComplete="new-password" placeholder="Новый пароль, минимум 8 символов" value={pass} onChange={(e) => setPass(e.target.value)} className={input} wrapClassName="max-w-sm" aria-label="Новый пароль" minLength={8} required disabled={step === 'password'} />
           {step === 'password' && (
             <div className="space-y-2" data-testid="password-code-step">
               <p className="text-sm text-ink-2">Мы отправили 6-значный код на <span className="font-medium user-text">{email}</span>. Он действует 15 минут.</p>
@@ -168,7 +169,7 @@ export default function SettingsExtra({ hasPassword, integration, email, emailVe
           <form onSubmit={confirmDelete} className="space-y-2.5" data-testid="delete-form">
             {mailOn
               ? <><p className="text-sm text-ink-2">Введите код из письма, отправленного на <span className="font-medium user-text">{email}</span>.</p><input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="Код из письма" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`${input} tracking-[0.3em]`} aria-label="Код из письма" data-testid="delete-code" /></>
-              : <input type="password" autoComplete="current-password" placeholder="Текущий пароль" value={delPass} onChange={(e) => setDelPass(e.target.value)} className={input} aria-label="Текущий пароль" />}
+              : <PasswordInput autoComplete="current-password" placeholder="Текущий пароль" value={delPass} onChange={(e) => setDelPass(e.target.value)} className={input} wrapClassName="max-w-sm" aria-label="Текущий пароль" />}
             <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" variant="danger" disabled={!!busy || (mailOn ? code.length !== 6 : !delPass)} data-testid="delete-confirm">{busy === 'delete' && <Spinner />}Удалить навсегда</Button>
               {mailOn && <Button type="button" size="sm" variant="ghost" disabled={!!busy || wait > 0} onClick={() => sendCode('delete', setDelError)}>{wait > 0 ? `Отправить ещё раз через ${wait} с` : 'Отправить код ещё раз'}</Button>}
